@@ -1,15 +1,20 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: UnifyOS Crisis Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: devices
+    description: Device management
+  - name: sensors
+    description: Sensor data
+  - name: alerts
+    description: Alert management
 paths:
   /healthz:
     get:
@@ -24,6 +29,134 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /devices:
+    get:
+      operationId: listDevices
+      tags: [devices]
+      summary: List all devices
+      responses:
+        "200":
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+    post:
+      operationId: registerDevice
+      tags: [devices]
+      summary: Register a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "201":
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+  /devices/{deviceId}/sensor-data:
+    post:
+      operationId: submitSensorData
+      tags: [sensors]
+      summary: Submit sensor readings from a device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SensorDataRequest"
+      responses:
+        "200":
+          description: Sensor data processed with anomaly result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorDataResponse"
+
+  /devices/{deviceId}/readings:
+    get:
+      operationId: getDeviceReadings
+      tags: [sensors]
+      summary: Get recent sensor readings for a device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Recent sensor readings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SensorReading"
+
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List alerts
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: deviceId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/{alertId}/dismiss:
+    post:
+      operationId: dismissAlert
+      tags: [alerts]
+      summary: Dismiss an alert
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alert dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +167,166 @@ components:
       required:
         - status
 
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        location:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, warning, critical]
+        lastSeen:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - location
+        - status
+        - lastSeen
+        - createdAt
+
+    RegisterDeviceRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        location:
+          type: string
+      required:
+        - id
+        - name
+        - location
+
+    SensorDataRequest:
+      type: object
+      properties:
+        temperature:
+          type: number
+          description: Temperature in Celsius
+        smoke:
+          type: number
+          description: Smoke level in PPM
+        motion:
+          type: integer
+          description: Motion detected (0 or 1)
+        button:
+          type: integer
+          description: Panic button pressed (0 or 1)
+      required:
+        - temperature
+        - smoke
+        - motion
+        - button
+
+    SensorDataResponse:
+      type: object
+      properties:
+        reading:
+          $ref: "#/components/schemas/SensorReading"
+        anomaly:
+          $ref: "#/components/schemas/AnomalyResult"
+      required:
+        - reading
+        - anomaly
+
+    SensorReading:
+      type: object
+      properties:
+        id:
+          type: integer
+        deviceId:
+          type: string
+        temperature:
+          type: number
+        smoke:
+          type: number
+        motion:
+          type: integer
+        button:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - id
+        - deviceId
+        - temperature
+        - smoke
+        - motion
+        - button
+        - timestamp
+
+    AnomalyResult:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [NORMAL, MEDIUM, HIGH, CRITICAL]
+        confidence:
+          type: number
+        anomalies:
+          type: array
+          items:
+            type: string
+        action:
+          type: string
+        message:
+          type: string
+      required:
+        - severity
+        - confidence
+        - anomalies
+        - action
+        - message
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        deviceId:
+          type: string
+        deviceName:
+          type: string
+        deviceLocation:
+          type: string
+        severity:
+          type: string
+          enum: [NORMAL, MEDIUM, HIGH, CRITICAL]
+        confidence:
+          type: number
+        anomalies:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+        action:
+          type: string
+        dismissed:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - deviceId
+        - deviceName
+        - deviceLocation
+        - severity
+        - confidence
+        - anomalies
+        - message
+        - action
+        - dismissed
+        - createdAt
