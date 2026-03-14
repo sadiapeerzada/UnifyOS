@@ -1,0 +1,244 @@
+You are upgrading an existing UnifyOS Crisis Dashboard app (React.js frontend + Node.js backend). This is a smart emergency response system with 4 sensors: temperature, smoke, motion, and a physical SOS panic button. Do NOT rebuild from scratch — only add and modify what is specified below. Preserve all existing CSS, WebSocket logic, and sensor data format.
+
+================================================================================
+PART 1: BUG FIXES & APP STABILITY
+================================================================================
+
+Fix the following issues in the existing app:
+
+1. SENSOR DATA - Replace all Math.random() simulated sensor values with a proper mock data system:
+   - Create a file mockSensors.js that exports a function generateRealisticReading()
+   - Temperature cycles realistically: base 24°C with ±2°C natural variance using sine wave over time
+   - Smoke stays at 120-180 ppm normally
+   - Motion alternates ON/OFF every 45 seconds to simulate occupancy
+   - Button is always 0 unless manually triggered
+   - This mock is only used until real hardware is connected
+
+2. WEBSOCKET STABILITY - Add reconnection logic to the frontend WebSocket connection:
+   - If connection drops, retry every 3 seconds up to 10 attempts
+   - Show a small "Reconnecting..." banner in the UI when disconnected
+   - Show "Connected" green dot when live
+
+3. SENSOR CARD UI FIX - Each sensor card should show:
+   - Current value with correct unit (°C, ppm, Active/Inactive, Pressed/Clear)
+   - A status badge: NORMAL (green) / WARNING (yellow) / CRITICAL (red)
+   - Last updated timestamp
+   - A small sparkline (last 10 readings as a mini line chart using inline SVG — no external library needed)
+
+4. ALERT PANEL FIX - The alert panel should:
+   - Not flash or flicker when severity is NORMAL
+   - Only animate (pulse red background) when severity is CRITICAL
+   - Show a confidence bar (0-100%) as a visual progress bar under the alert message
+   - Stack multiple simultaneous alerts in a scrollable list instead of replacing each other
+
+5. HISTORY PANEL FIX - Alert history should:
+   - Persist across page refreshes using localStorage
+   - Show maximum 50 entries, oldest removed first
+   - Each entry shows: timestamp, severity badge, confidence %, which sensors triggered
+   - Add a "Clear history" button
+
+================================================================================
+PART 2: AUTHENTICATION (PREPARED BUT NOT ACTIVE)
+================================================================================
+
+Set up the authentication structure so it is ready to activate with real Firebase keys later. Right now it should run in DEMO MODE with no real auth.
+
+Create src/auth/AuthContext.jsx:
+- In demo mode: auto-login as { uid: "demo-user", email: "demo@unifyos.com", role: "admin", name: "Demo Admin" }
+- Export: currentUser, userRole, isDemo flag, logout function (in demo mode logout just shows alert "Auth not configured yet")
+- Add a comment at top: // TODO: Replace demo auth with Firebase Auth when keys are ready
+
+Create src/auth/ProtectedRoute.jsx:
+- In demo mode: always allow access, show a small yellow banner "Demo Mode — Auth not configured"
+- When real auth is active: redirect unauthenticated users to /login
+
+Create src/pages/Login.jsx (for future use):
+- Centered card with UnifyOS logo text
+- "Sign in with Google" button (disabled in demo mode with tooltip "Configure Firebase to enable")
+- Clean minimal design matching existing app style
+
+Create backend middleware/auth.js:
+- In demo mode: middleware just calls next() and attaches req.user = { uid: "demo", role: "admin" }
+- Add comment: // TODO: Replace with Firebase token verification when keys are ready
+- Structure it so swapping to real Firebase is a single function change
+
+================================================================================
+PART 3: ANOMALY DETECTION UPGRADES
+================================================================================
+
+Upgrade the existing AnomalyDetector class in the backend:
+
+1. DYNAMIC BASELINE (most important fix):
+   Add to constructor: this.baselines = {}
+   
+   Add method calibrateBaseline(deviceId, temp, smoke):
+   - Collect first 20 readings silently, no alerts during this period
+   - Calculate average temp and smoke from those readings
+   - Set baseline: { temp: avgTemp, smoke: avgSmoke, calibrated: true }
+   - Log "Baseline calibrated for device X: temp=Y smoke=Z"
+   
+   Modify checkAnomalies to use dynamic thresholds:
+   - If not calibrated: return { severity: "CALIBRATING", confidence: 0, message: "Calibrating sensors... please wait" }
+   - TEMP alert threshold = baseline.temp + 15 instead of hardcoded 45
+   - SMOKE alert threshold = baseline.smoke + 250 instead of hardcoded 400
+   - TEMP spike = 3 degree increase per reading
+   - SMOKE spike = increase of more than (baseline.smoke * 0.8) per reading
+
+2. ALERT DEBOUNCING:
+   Add to constructor: this.lastAlertTime = {}
+   
+   Before emitting any HIGH or CRITICAL alert:
+   - If same device alerted within last 5 seconds, suppress and return NORMAL
+   - Update lastAlertTime on every real alert emission
+
+3. CONFIDENCE DISPLAY IMPROVEMENTS:
+   Add to each alert result:
+   - triggeredSensors: array of which sensors contributed (e.g. ["TEMP", "SMOKE"])
+   - suggestedAction: human-readable string based on severity
+     CRITICAL → "Evacuate immediately. Call emergency services."
+     HIGH → "Alert staff. Investigate the area now."
+     MEDIUM → "Monitor closely. Check if sensor malfunction."
+     NORMAL → "All clear."
+
+================================================================================
+PART 4: EMERGENCY RESPONSE SYSTEM
+================================================================================
+
+This is the most important new feature. When a CRITICAL alert fires, the app must guide people through a structured emergency response. Build this as a new component and integrate it into the dashboard.
+
+Create src/components/EmergencyProtocol.jsx:
+
+TRIGGER: Component activates automatically when alert severity becomes CRITICAL
+
+VISUAL: Full-screen overlay (semi-transparent dark background) that appears over the dashboard with:
+- Large pulsing red header: "EMERGENCY DETECTED"
+- Confidence percentage prominently displayed
+- Which sensors triggered (shown as colored tags)
+- A step-by-step evacuation checklist (see below)
+- A countdown timer showing how long the emergency has been active
+- Two action buttons: "Confirm Emergency" and "False Alarm"
+
+EVACUATION CHECKLIST (shown as interactive steps, each can be checked off):
+Step 1 — ALERT  
+  "Sound the alarm. Notify all occupants on this floor immediately."
+  Sub-action: [Button] "Send SMS alert to emergency contacts" (calls POST /api/emergency/notify)
+
+Step 2 — LOCATE  
+  "Check the occupancy map. Confirm all rooms are being evacuated."
+  Sub-action: Shows which rooms have active motion sensors (occupied) vs empty
+
+Step 3 — EVACUATE  
+  "Direct everyone to the nearest exit. Do NOT use elevators."
+  Sub-action: Shows a text field to log headcount: "Enter number of people evacuated: [input]"
+
+Step 4 — CONTAIN  
+  "Close all fire doors. Do not re-enter the building."
+  Sub-action: Checkbox "Fire doors closed"
+
+Step 5 — CONTACT  
+  "Call emergency services immediately."
+  Sub-action: Shows clickable phone numbers:
+    Fire: 101
+    Police: 100  
+    Ambulance: 102
+    National Emergency: 112
+
+Step 6 — REPORT  
+  "Stay at the assembly point. Report to the incident commander."
+  Sub-action: Text area "Incident notes" that saves to alert log
+
+Each step has:
+- A checkbox to mark complete
+- Timestamp of when it was completed
+- Assigned to: dropdown (Admin / Responder 1 / Responder 2)
+- Color: incomplete = gray, in-progress = amber, done = green
+
+PROGRESS BAR at top of checklist showing X of 6 steps complete.
+
+After all steps complete: Show "Incident Logged" screen with summary and option to export as PDF (just format it as a printable HTML page with window.print()).
+
+Create backend endpoint POST /api/emergency/notify:
+- Accepts body: { alertId, message, deviceId }
+- In demo mode: just logs to console and returns { sent: true, demo: true, message: "Demo mode: SMS would be sent to emergency contacts" }
+- Add comment: // TODO: Integrate Twilio or Firebase SMS when ready
+- Store the notification attempt in MongoDB with timestamp
+
+Create backend endpoint POST /api/emergency/log:
+- Accepts body: { alertId, steps, headcount, notes, resolvedBy }
+- Saves full incident report to MongoDB collection: incident_reports
+- Returns the saved report with an incident ID
+
+================================================================================
+PART 5: DASHBOARD LAYOUT IMPROVEMENTS
+================================================================================
+
+Restructure the main dashboard layout:
+
+HEADER BAR (top):
+- Left: UnifyOS logo + "Crisis Dashboard" text
+- Center: System status pill — green "All Clear" / red pulsing "EMERGENCY ACTIVE"
+- Right: Demo Mode badge + user avatar initial + logout button (disabled in demo)
+
+MAIN GRID (below header):
+- Left column (60% width): Sensor cards grid (2x2) + Alert history panel
+- Right column (40% width): Active alert panel + Quick actions panel
+
+QUICK ACTIONS PANEL (new, in right column below alert):
+- Button: "Test Alarm" — triggers a simulated CRITICAL alert for 10 seconds then auto-resolves
+- Button: "Silence Alert" — mutes audio/visual for 2 minutes (snooze)
+- Button: "View Incident Log" — opens a modal with all past incident reports
+- Button: "Export Report" — downloads current session data as JSON
+
+DEVICE STATUS BAR (bottom of page):
+- Shows connected devices (for now just one: "Device 1 — ESP32")
+- Connection status: green dot "Live" / red dot "Offline"
+- Last ping timestamp
+- Battery indicator placeholder (will come from hardware later)
+
+================================================================================
+PART 6: MOBILE RESPONSIVENESS
+================================================================================
+
+Ensure the app works on mobile (judges may test on phones):
+
+- Below 768px: switch to single column layout
+- Sensor cards stack vertically
+- Emergency overlay takes full screen on mobile
+- All buttons minimum 44px touch target
+- Alert checklist items are large enough to tap
+- Emergency phone numbers are clickable tel: links on mobile
+
+================================================================================
+PART 7: ROUTING
+================================================================================
+
+Set up React Router with these routes:
+- / → redirect to /dashboard
+- /dashboard → main dashboard (protected)
+- /alerts → full alert history page (protected)
+- /incident/:id → view a specific incident report (protected)
+- /login → login page (public, currently demo only)
+- /settings → placeholder settings page (admin only, just show "Settings coming soon")
+
+================================================================================
+ENVIRONMENT VARIABLES NEEDED (output this as a checklist at the end)
+================================================================================
+
+After completing all changes, output a file called ENV_SETUP.md listing:
+- Every environment variable the app will need
+- Which ones are needed now vs later (Firebase keys are "later")
+- Example values or where to get each one
+- Which file each variable goes in (.env for frontend, .env for backend)
+
+================================================================================
+FINAL RULES — READ BEFORE STARTING
+================================================================================
+
+1. Do NOT delete any existing working code
+2. Do NOT change sensor data format: { temperature, smoke, motion, button }
+3. Do NOT change existing WebSocket event names
+4. Preserve all existing CSS classes
+5. Every new file gets a comment at the top explaining what it does
+6. Every placeholder (Firebase config, Twilio, etc.) gets a clear TODO comment
+7. After finishing, show a summary of every file created or modified
+8. The app must run without errors in demo mode with zero external services configured
