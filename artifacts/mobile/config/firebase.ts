@@ -2,8 +2,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+// Add GEMINI_API_KEY to your .env file
 const firebaseConfig = {
-  apiKey: "AIzaSyAt1m6QAV_n1856ubMGm4UrqvKsfczRgbI",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: "unifyos-980ea.firebaseapp.com",
   projectId: "unifyos-980ea",
   storageBucket: "unifyos-980ea.firebasestorage.app",

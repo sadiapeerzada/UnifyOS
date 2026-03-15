@@ -26,6 +26,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0A0E1A" } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="device/[id]" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="login" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }

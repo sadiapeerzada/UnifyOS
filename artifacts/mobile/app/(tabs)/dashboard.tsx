@@ -146,6 +146,13 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <TouchableOpacity
+            style={styles.signInBtn}
+            onPress={() => router.push('/login')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.signInText}>Sign In</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.avatar}
             onPress={() => setAvatarOpen(v => !v)}
             activeOpacity={0.8}
@@ -368,6 +375,18 @@ const styles = StyleSheet.create({
   liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveTagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  signInBtn: {
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  signInText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.accent,
+  },
   avatar: {
     width: 36,
     height: 36,
