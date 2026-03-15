@@ -1,0 +1,109 @@
+You are working on UnifyOS — a React Native / Expo mobile app that is a smart crisis coordination platform for hotels and hospitality venues. The app uses a Node.js backend.
+
+CRITICAL RULES — READ BEFORE DOING ANYTHING:
+1. Do NOT redesign or change ANY existing UI, colors, layouts or screens
+2. Do NOT break any existing functionality
+3. Do NOT remove any existing code — only ADD on top
+4. After every major change, make sure the app still runs without errors
+5. This is a React Native / Expo app — NOT a web React app. Use Expo and React Native compatible libraries only
+6. At the end, show me every single file you created or modified
+
+================================================================================
+PART 1 — FIREBASE AUTHENTICATION
+================================================================================
+
+Step 1: Install Firebase:
+npx expo install firebase
+
+Step 2: Create config/firebase.ts with this exact config:
+
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAt1m6QAV_n1856ubMGm4UrqvKsfczRgbI",
+  authDomain: "unifyos-980ea.firebaseapp.com",
+  projectId: "unifyos-980ea",
+  storageBucket: "unifyos-980ea.firebasestorage.app",
+  messagingSenderId: "537179931085",
+  appId: "1:537179931085:web:2466275a5233ef9d8c0484",
+  measurementId: "G-0QZ0DH3KLQ"
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export default app;
+
+Step 3: Create context/AuthContext.tsx:
+DEMO MODE (default, always active until user signs in):
+- Auto login as: { uid: "demo-001", name: "Demo Admin", email: "demo@unifyos.com", role: "admin", isDemo: true }
+- logout() in demo mode: shows Alert "Demo Mode — Real auth coming soon"
+- Export: currentUser, userRole, isDemo, login(), logout()
+
+REAL MODE (when user signs in with Google):
+- Use expo-auth-session for Google Sign In
+- After login: check Firestore users/{uid} for role field
+- If no document exists: create one with role: "responder"
+- Admins see everything, responders see dashboard + alerts only
+
+Step 4: Create components/AuthWrapper.tsx:
+- Wraps entire app in AuthContext provider
+- Demo mode: show small yellow banner at very top of every screen: "Demo Mode — Firebase Auth Active"
+- Never block access in demo mode
+- Real mode: redirect to login if not authenticated
+
+Step 5: Create screens/LoginScreen.tsx:
+- Clean centered card matching existing app style
+- "UnifyOS" title at top
+- "Continue with Google" button
+- "Running in Demo Mode" grey text below button
+- Only shown when real auth is active and user is logged out
+
+Step 6: Add user avatar to existing navigation header:
+- Top right corner: circle with initials "DA" for Demo Admin
+- Tap it: small dropdown showing name + email + logout button
+- Keep ALL existing header content exactly as is — just add avatar
+
+================================================================================
+PART 2 — REAL SENSOR DATA + HARDWARE ENDPOINT
+================================================================================
+
+Step 1: Create services/sensorService.ts:
+DEMO MODE generates realistic fake sensor readings every 2 seconds:
+- temperature: 24 + Math.sin(Date.now() / 10000) * 2 (smooth sine wave, not random spikes)
+- smoke: 120 + Math.random() * 60 (stays 120-180 ppm normally)
+- motion: alternates true/false every 45 seconds
+- button: always 0
+- Export useSensorData() hook returning { temperature, smoke, motion, button, isLive }
+
+HARDWARE MODE: connects to backend WebSocket when available
+- Auto switches to hardware mode when backend responds to /api/status
+- Falls back to demo mode silently if backend unreachable
+
+Step 2: Update ALL existing sensor cards to use useSensorData() hook
+- Keep exact same UI — only replace hardcoded/random values with hook data
+- Add tiny green dot "Live" or amber dot "Demo" on each card
+
+Step 3: Backend — add POST /api/sensor-data endpoint:
+- Accepts: { temperature, smoke, motion, button, deviceId? }
+- deviceId defaults to "device-001" if not provided
+- NO authentication on this route (ESP32 hardware cannot do auth)
+- Add CORS: allow all origins on this route only
+- Runs data through existing anomaly detector
+- Saves reading to database with timestamp and deviceId
+- Emits WebSocket event "sensor-update" to all connected clients
+- Returns: { status: "ok", severity, confidence, message, suggestedAction, location }
+
+Step 4: Backend — add GET /api/status endpoint:
+- Returns: { status: "ok", lastHardwarePing, deviceCount, uptime }
+- lastHardwarePing updates every time POST /api/sensor-data is called
+
+Step 5: Add "Simulate Emergency" button in dashboard:
+- Small unobtrusive button, does not disrupt existing layout
+- Posts: { temperature: 75, smoke: 750, motion: 1, button: 1, deviceId: "device-001" }
+- Shows result as small toast notification
+- This is how we test the full alert flow without hardware
+
+==...
