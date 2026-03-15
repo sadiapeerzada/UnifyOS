@@ -33,7 +33,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const GOOGLE_CLIENT_IDS = {
   androidClientId: '537179931085-REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com',
   iosClientId: '537179931085-REPLACE_WITH_IOS_CLIENT_ID.apps.googleusercontent.com',
-  webClientId: '537179931085-REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com',
+  webClientId: process.env.GOOGLE_WEB_CLIENT_ID,
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
