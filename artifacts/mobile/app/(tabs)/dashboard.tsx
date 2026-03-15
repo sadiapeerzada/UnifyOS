@@ -1,10 +1,12 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,10 +16,16 @@ import { SensorGauge } from "@/components/SensorGauge";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
+import { useAuth } from "@/context/AuthContext";
+import { useSensorData, simulateEmergency } from "@/services/sensorService";
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { devices, activeAlerts, dismissAlert, getDeviceSensorData, getDeviceAnomaly } = useDashboard();
+  const { currentUser, logout, isDemo } = useAuth();
+  const sensorData = useSensorData();
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [simulating, setSimulating] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -43,6 +51,26 @@ export default function DashboardScreen() {
                          overallSeverity === "HIGH" ? Colors.highBorder :
                          overallSeverity === "MEDIUM" ? Colors.mediumBorder : Colors.normalBorder;
 
+  const initials = currentUser
+    ? currentUser.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+    : "??";
+
+  async function handleSimulate() {
+    setSimulating(true);
+    try {
+      const result = await simulateEmergency();
+      Alert.alert(
+        "Emergency Simulated",
+        `Severity: ${result.severity}\nConfidence: ${result.confidence}%\n${result.message}`,
+        [{ text: "OK" }]
+      );
+    } catch {
+      Alert.alert("Offline", "Backend not reachable — demo data only");
+    } finally {
+      setSimulating(false);
+    }
+  }
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
@@ -50,8 +78,32 @@ export default function DashboardScreen() {
           <Text style={styles.title}>Dashboard</Text>
           <Text style={styles.subtitle}>Live sensor monitoring</Text>
         </View>
-        <LiveIndicator />
+        <View style={styles.headerRight}>
+          <LiveIndicator />
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => setAvatarOpen(v => !v)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.avatarText}>{initials}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {avatarOpen && (
+        <View style={styles.avatarDropdown}>
+          <Text style={styles.dropdownName}>{currentUser?.name}</Text>
+          <Text style={styles.dropdownEmail}>{currentUser?.email}</Text>
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={() => { setAvatarOpen(false); logout(); }}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="logout" size={14} color={Colors.critical} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView
         style={styles.scroll}
@@ -108,7 +160,15 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{worstDevice.location}</Text>
-              <Text style={styles.deviceTag}>{worstDevice.name}</Text>
+              <View style={styles.sectionRight}>
+                <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>
+                  <View style={[styles.liveDot, { backgroundColor: sensorData.isLive ? Colors.normal : Colors.medium }]} />
+                  <Text style={[styles.liveTagText, { color: sensorData.isLive ? Colors.normal : Colors.medium }]}>
+                    {sensorData.isLive ? "Live" : "Demo"}
+                  </Text>
+                </View>
+                <Text style={styles.deviceTag}>{worstDevice.name}</Text>
+              </View>
             </View>
             <View style={styles.gaugeGrid}>
               <SensorGauge
@@ -195,6 +255,18 @@ export default function DashboardScreen() {
             })}
           </View>
         </View>
+
+        <TouchableOpacity
+          style={[styles.simulateBtn, simulating && { opacity: 0.6 }]}
+          onPress={handleSimulate}
+          disabled={simulating}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="fire-alert" size={16} color={Colors.critical} />
+          <Text style={styles.simulateBtnText}>
+            {simulating ? "Posting..." : "Simulate Emergency"}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -220,8 +292,40 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  avatarDropdown: {
+    position: "absolute",
+    top: 72,
+    right: 16,
+    zIndex: 100,
+    backgroundColor: Colors.bgCardElevated,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    minWidth: 180,
+    gap: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+  },
+  dropdownName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  dropdownEmail: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginBottom: 8 },
+  logoutBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logoutText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 16 },
   statusCard: { borderRadius: 18, borderWidth: 1, padding: 18 },
@@ -235,9 +339,13 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 9, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   section: { gap: 10 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sectionRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
   sectionCount: { fontSize: 12, color: Colors.critical, fontFamily: "Inter_700Bold", backgroundColor: Colors.criticalBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   deviceTag: { fontSize: 11, color: Colors.accent, fontFamily: "Inter_500Medium" },
+  liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  liveTagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   gaugeGrid: { flexDirection: "row", gap: 10 },
   miniCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: "center", gap: 6, borderWidth: 1 },
   miniCardActive: { backgroundColor: Colors.normalBg, borderColor: Colors.normalBorder },
@@ -252,4 +360,18 @@ const styles = StyleSheet.create({
   deviceMiniName: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.text },
   deviceMiniLoc: { fontSize: 10, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   deviceMiniTemp: { fontSize: 13, fontFamily: "Inter_700Bold", marginTop: 4 },
+  simulateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.criticalBorder,
+    backgroundColor: Colors.criticalBg,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  simulateBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
 });
