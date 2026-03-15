@@ -1,17 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
-  function handleGoogle() {
-    Alert.alert(
-      'Google Sign-In',
-      'Google Sign-In requires Firebase configuration',
-      [{ text: 'OK' }]
-    );
-  }
+  const { login, isLoading } = useAuth();
 
   return (
     <View style={styles.container}>
@@ -20,8 +15,12 @@ export default function LoginScreen() {
         <Text style={styles.title}>UnifyOS</Text>
         <Text style={styles.subtitle}>Crisis Coordination Platform</Text>
 
-        <TouchableOpacity style={styles.button} onPress={handleGoogle} activeOpacity={0.85}>
-          <MaterialCommunityIcons name="google" size={20} color="#fff" />
+        <TouchableOpacity style={styles.button} onPress={login} activeOpacity={0.85} disabled={isLoading}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <MaterialCommunityIcons name="google" size={20} color="#fff" />
+          )}
           <Text style={styles.buttonText}>Continue with Google</Text>
         </TouchableOpacity>
 

@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "expo-auth-session": "^7.0.10",
+    "expo-crypto": "^55.0.9",
     "firebase": "^12.10.0"
   }
 }

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Platform,
   Pressable,
@@ -8,6 +8,7 @@ import {
   Text,
   View,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -15,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
+import { useAuth } from "@/context/AuthContext";
 
 const FEATURES = [
   {
@@ -60,8 +62,15 @@ const ALERT_LEVELS = [
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { devices, activeAlerts } = useDashboard();
+  const { currentUser, login, isLoading } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  useEffect(() => {
+    if (currentUser && !currentUser.isDemo) {
+      router.replace("/(tabs)/dashboard");
+    }
+  }, [currentUser]);
 
   const criticalCount = activeAlerts.filter(a => a.severity === "CRITICAL").length;
   const overallStatus = criticalCount > 0 ? "CRITICAL" : activeAlerts.length > 0 ? "ACTIVE" : "NORMAL";
@@ -97,23 +106,26 @@ export default function HomeScreen() {
 
           <View style={styles.heroCTARow}>
             <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/dashboard"); }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); login(); }}
               style={styles.primaryBtn}
+              disabled={isLoading}
             >
-              <MaterialCommunityIcons name="gauge" size={16} color="#fff" />
-              <Text style={styles.primaryBtnText}>Open Dashboard</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <MaterialCommunityIcons name="google" size={16} color="#fff" />
+              )}
+              <Text style={styles.primaryBtnText}>Sign in with Google</Text>
             </Pressable>
             <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/alerts"); }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/dashboard"); }}
               style={styles.secondaryBtn}
             >
-              <Feather name="bell" size={15} color={Colors.textSecondary} />
-              <Text style={styles.secondaryBtnText}>View Alerts</Text>
-              {activeAlerts.length > 0 && (
-                <View style={styles.alertDot} />
-              )}
+              <MaterialCommunityIcons name="account-outline" size={15} color={Colors.textSecondary} />
+              <Text style={styles.secondaryBtnText}>Continue as Guest</Text>
             </Pressable>
           </View>
+          <Text style={styles.demoHint}>Demo mode available without sign in</Text>
 
           <View style={[styles.statusBanner, { backgroundColor: statusColor + "12", borderColor: statusColor + "40" }]}>
             <MaterialCommunityIcons
@@ -350,6 +362,13 @@ const styles = StyleSheet.create({
   heroCTARow: {
     flexDirection: "row",
     gap: 10,
+  },
+  demoHint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textMuted,
+    textAlign: "center",
+    marginTop: -4,
   },
   primaryBtn: {
     flex: 1,

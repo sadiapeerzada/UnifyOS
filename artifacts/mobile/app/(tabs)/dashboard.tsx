@@ -145,20 +145,24 @@ export default function DashboardScreen() {
               {sensorData.isLive ? "Live" : "Demo"}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.signInBtn}
-            onPress={() => router.push('/login')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.signInText}>Sign In</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.avatar}
-            onPress={() => setAvatarOpen(v => !v)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.avatarText}>{initials}</Text>
-          </TouchableOpacity>
+          {currentUser && !currentUser.isDemo ? (
+            <TouchableOpacity
+              style={styles.avatar}
+              onPress={() => setAvatarOpen(v => !v)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.avatarText}>{initials}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.guestBtn}
+              onPress={() => router.push('/(tabs)/')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="account-outline" size={14} color={Colors.accent} />
+              <Text style={styles.signInText}>Sign In</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -168,7 +172,7 @@ export default function DashboardScreen() {
           <Text style={styles.dropdownEmail}>{currentUser?.email}</Text>
           <TouchableOpacity
             style={styles.logoutBtn}
-            onPress={() => { setAvatarOpen(false); logout(); }}
+            onPress={() => { setAvatarOpen(false); logout().then(() => router.replace('/(tabs)/')); }}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons name="logout" size={14} color={Colors.critical} />
@@ -375,7 +379,10 @@ const styles = StyleSheet.create({
   liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveTagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  signInBtn: {
+  guestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderWidth: 1,
     borderColor: Colors.accent,
     borderRadius: 8,
