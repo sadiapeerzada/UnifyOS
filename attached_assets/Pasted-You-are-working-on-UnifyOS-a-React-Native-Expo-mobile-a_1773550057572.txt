@@ -1,0 +1,265 @@
+You are working on UnifyOS — a React Native / Expo mobile app that is a smart crisis coordination platform for hotels and hospitality venues. The app uses a Node.js backend. 
+
+CRITICAL RULES — READ BEFORE DOING ANYTHING:
+1. Do NOT redesign or change ANY existing UI, colors, layouts or screens
+2. Do NOT break any existing functionality
+3. Do NOT remove any existing code — only ADD on top
+4. After every major change, make sure the app still runs without errors
+5. This is a React Native / Expo app — NOT a web React app. Use Expo and React Native compatible libraries only
+6. At the end, show me every single file you created or modified
+
+================================================================================
+PART 1 — FIREBASE AUTHENTICATION (Demo mode first, real auth ready)
+================================================================================
+
+Step 1: Install Firebase for Expo:
+npx expo install firebase
+
+Step 2: Create config/firebase.ts:
+- Initialize Firebase with these placeholder values (add TODO comments):
+  apiKey: "TODO_REPLACE",
+  authDomain: "TODO_REPLACE", 
+  projectId: "TODO_REPLACE",
+  storageBucket: "TODO_REPLACE",
+  messagingSenderId: "TODO_REPLACE",
+  appId: "TODO_REPLACE"
+- Export: auth, db (Firestore)
+
+Step 3: Create context/AuthContext.tsx:
+DEMO MODE (default, works without Firebase keys):
+- Auto login as: { uid: "demo-001", name: "Demo Admin", email: "demo@unifyos.com", role: "admin", isDemo: true }
+- logout() in demo mode just shows Alert: "Configure Firebase to enable real auth"
+
+REAL MODE (when Firebase keys are added):
+- Google Sign In using expo-auth-session
+- After login: check Firestore users/{uid} for role
+- If no document: create one with role: "responder"
+- Export: currentUser, userRole, isDemo, login(), logout()
+
+Step 4: Create components/AuthWrapper.tsx:
+- Wraps entire app
+- Demo mode: show small yellow banner at top of every screen: "Demo Mode — Add Firebase keys to enable auth"
+- Real mode: redirect to login screen if not authenticated
+- Do NOT block access in demo mode
+
+Step 5: Create screens/LoginScreen.tsx:
+- Clean card centered on screen matching existing app style
+- UnifyOS logo text at top
+- "Continue with Google" button
+- Below: "Running in Demo Mode" grey text if demo
+- Only shown when real auth is configured and user is logged out
+
+Step 6: Add user avatar to existing header/navigation:
+- Top right: circle with user initials (e.g. "DA" for Demo Admin)
+- Tap it: show small menu with user email + logout button
+- Keep ALL existing header content exactly as is
+
+================================================================================
+PART 2 — REAL SENSOR DATA + HARDWARE ENDPOINT
+================================================================================
+
+Step 1: Create services/sensorService.ts:
+- DEMO MODE: generates realistic fake sensor readings every 2 seconds:
+  temperature: base 24°C with sine wave variance ±2°C (realistic room temp)
+  smoke: 120-180 ppm normally
+  motion: alternates every 45 seconds
+  button: always 0 unless manually triggered
+  
+- HARDWARE MODE: connects to backend WebSocket at EXPO_PUBLIC_BACKEND_URL
+- Auto-detects which mode based on whether backend is reachable
+- Exports: useSensorData() hook that returns { temperature, smoke, motion, button, isLive }
+
+Step 2: Update ALL existing sensor cards/displays to use useSensorData() hook
+- Keep exact same UI — just replace Math.random() or hardcoded values with real hook data
+- Add a small indicator on each card: green dot "Live" or amber dot "Demo"
+
+Step 3: In the Node.js backend, add this endpoint if it does not exist:
+POST /api/sensor-data
+- Accepts: { temperature, smoke, motion, button, deviceId? }
+- NO authentication on this route (ESP32 hardware cannot do auth)
+- deviceId defaults to "device-001" if not provided
+- Runs data through anomaly detector
+- Saves to database with timestamp and deviceId
+- Emits WebSocket event "sensor-update" to all connected clients
+- Returns: { status: "ok", severity, confidence, message, suggestedAction }
+- Add CORS: allow all origins on this specific route
+
+Step 4: Add GET /api/status endpoint:
+- Returns: { status: "ok", lastHardwarePing: timestamp, deviceCount: number, uptime: seconds }
+- Frontend uses this to show "Hardware Connected" vs "Demo Mode"
+
+Step 5: Add "Simulate Hardware" button somewhere in the app (small, unobtrusive):
+- Sends a POST to /api/sensor-data with: { temperature: 75, smoke: 750, motion: 1, button: 1, deviceId: "device-001" }
+- This simulates a real emergency from hardware
+- Shows response in a small toast/alert
+
+================================================================================
+PART 3 — AI ANOMALY DETECTION UPGRADE
+================================================================================
+
+Find the existing AnomalyDetector class in the backend and make ONLY these changes:
+
+Change 1 — Dynamic baseline (most important):
+Add to constructor:
+  this.baselines = {}
+  this.calibrationReadings = {}
+
+Add calibrateBaseline(deviceId, temp, smoke) method:
+- Collect first 20 readings silently — NO alerts during this period
+- After 20 readings: calculate average temp and smoke
+- Set: baseline = { temp: avgTemp, smoke: avgSmoke, calibrated: true }
+- Console log: "UnifyOS baseline calibrated for [deviceId]: temp=[x]°C smoke=[y]ppm"
+
+Modify checkAnomalies():
+- Call calibrateBaseline first
+- If not calibrated: return { severity: "CALIBRATING", confidence: 0, message: "Sensors warming up — 20 seconds", triggeredSensors: [], suggestedAction: "Please wait" }
+- Replace hardcoded temp > 45 → temp > (baseline.temp + 15)
+- Replace hardcoded smoke > 400 → smoke > (baseline.smoke + 250)
+- Keep ALL existing confidence scoring exactly as is
+
+Change 2 — Alert debounce:
+Add to constructor: this.lastAlertTime = {}
+Before returning HIGH or CRITICAL:
+- If same deviceId alerted within 5000ms: return NORMAL (suppressed)
+- Otherwise: update lastAlertTime[deviceId] = Date.now()
+
+Change 3 — Enrich every alert result with:
+- triggeredSensors: ["TEMP", "SMOKE", "BUTTON", "MOTION"] — only include ones that contributed
+- suggestedAction: 
+  CRITICAL → "Evacuate immediately. Call 112."
+  HIGH → "Alert staff. Investigate now."
+  MEDIUM → "Monitor closely. Possible false trigger."
+  NORMAL → "All systems normal."
+  CALIBRATING → "Sensors warming up."
+- deviceId: pass through from input
+- location: deviceId mapped to human name e.g. "device-001" → "Main Lobby"
+
+Change 4 — Multi-device support:
+Add deviceLocations map:
+{
+  "device-001": "Main Lobby",
+  "device-002": "Floor 2 - East Wing", 
+  "device-003": "Kitchen",
+  "device-004": "Conference Hall",
+  "device-005": "Floor 3 - West Wing"
+}
+Include location string in every alert result.
+
+================================================================================
+PART 4 — APP FEATURES POLISH
+================================================================================
+
+Feature 1 — Alert history persistence:
+- Save every alert to AsyncStorage under key "unifyos_alert_history"
+- Load on app start
+- Maximum 50 entries, oldest removed first
+- Each entry: { timestamp, severity, confidence, triggeredSensors, location, message }
+- Add "Clear History" button to history screen
+
+Feature 2 — Active alert improvements:
+- CRITICAL alerts: red pulsing animation on alert card
+- NORMAL: no animation at all
+- Add confidence progress bar under alert message
+- Show triggeredSensors as small colored tags
+- Show location prominently: "Alert from: Main Lobby"
+- Stack multiple alerts in scrollable list instead of replacing
+
+Feature 3 — Connection status:
+Add a status bar component shown on main dashboard:
+- Green: "Hardware Connected — [deviceId] — Live data"
+- Amber: "Demo Mode — Simulated data"  
+- Red: "Connection Lost — Reconnecting..."
+Updates every 30 seconds by checking /api/status
+
+Feature 4 — Quick action buttons:
+Add to dashboard (small row of buttons, don't disrupt existing layout):
+- "Test Emergency" — sends simulate POST, triggers full alert flow
+- "Silence (2min)" — mutes animations for 120 seconds, shows countdown
+- "Export Log" — shares alert history as text via Expo Share
+- "All Clear" — dismisses all active alerts with confirmation
+
+Feature 5 — Emergency protocol improvements:
+Find existing evacuation checklist and add:
+- Show which sensors triggered at the top: "Triggered by: SMOKE + TEMP"
+- Show location: "Location: Main Lobby" 
+- Show confidence: large number e.g. "87% confidence"
+- Each step: add timestamp when checked off
+- After all 6 steps complete: show "Incident Logged" screen with summary
+- Add "Call 112" button that uses Expo Linking to dial
+
+Feature 6 — Sensor sparklines:
+On each sensor card, add tiny 60×24px sparkline of last 10 readings:
+- Use simple SVG polyline (react-native-svg if available, otherwise skip gracefully)
+- Green line = normal range, Red line = alert range
+- No axes, no labels — just the trend line
+
+================================================================================
+PART 5 — MULTI-DEVICE SUPPORT (UI only — no hardware needed yet)
+================================================================================
+
+Add a "Devices" tab or section showing:
+- List of known devices with their locations
+- Each device: name, location, last seen timestamp, current status (green/amber/red dot)
+- "device-001 — Main Lobby — Active — Last ping: 2s ago"
+- For demo: show 3 fake devices with simulated statuses
+- When hardware connects it automatically appears here
+
+================================================================================
+PART 6 — PRODUCTION READINESS
+================================================================================
+
+Step 1 — Environment variables:
+Create .env file:
+EXPO_PUBLIC_BACKEND_URL=http://localhost:3000
+EXPO_PUBLIC_APP_VERSION=1.0.0
+EXPO_PUBLIC_DEMO_MODE=true
+
+Replace ALL hardcoded URLs and config values with these env vars.
+
+Step 2 — Error handling:
+- Every API call must have try/catch
+- If backend unreachable: silently fall back to demo mode, show amber status
+- Never show a crash or white screen — always fail gracefully
+
+Step 3 — Loading states:
+- Every screen must show a loading spinner while fetching data
+- Use existing app colors/style for spinners
+
+Step 4 — App metadata:
+In app.json update:
+- name: "UnifyOS"
+- description: "Real-time crisis coordination for hospitality venues"
+- version: "1.0.0"
+- Add appropriate permissions: camera (for QR scanning future), notifications
+
+Step 5 — Add about screen or section:
+- App version
+- "UnifyOS — Crisis Coordination Platform"
+- "Built for Google Solution Challenge 2026"
+- "Hardware: ESP32 IoT Smart Panic Button"
+- Contact/support placeholder
+
+================================================================================
+FINAL CHECKLIST — verify all of these before finishing:
+================================================================================
+
+[ ] App runs without any errors in Expo Go
+[ ] Demo mode works perfectly with no Firebase keys configured  
+[ ] All existing screens look exactly the same
+[ ] Sensor cards show realistic demo data (not random spikes)
+[ ] Alert system triggers correctly with simulate button
+[ ] Evacuation checklist works end to end
+[ ] Alert history saves and loads from AsyncStorage
+[ ] POST /api/sensor-data endpoint works and returns correct response
+[ ] GET /api/status endpoint works
+[ ] Connection status indicator shows correct state
+[ ] Multi-device UI shows 3 demo devices
+[ ] App does not crash on any screen
+[ ] All buttons have working touch feedback
+[ ] Mobile layout looks good on both small and large phone screens
+
+After completing everything show me:
+1. Complete list of every file created or modified
+2. Any TODO items that need real values (Firebase config etc)
+3. The exact URL format the ESP32 needs to POST to
+4. Any errors or issues encountered
