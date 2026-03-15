@@ -43,6 +43,13 @@ const SEVERITY_CONFIG = {
   },
 };
 
+const SENSOR_COLORS: Record<string, string> = {
+  TEMP: Colors.critical,
+  SMOKE: Colors.high,
+  BUTTON: "#A78BFA",
+  MOTION: Colors.accent,
+};
+
 export function AlertBanner({ alert, onDismiss, onPress, compact }: AlertBannerProps) {
   const cfg = SEVERITY_CONFIG[alert.severity];
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -90,19 +97,39 @@ export function AlertBanner({ alert, onDismiss, onPress, compact }: AlertBannerP
             <View style={[styles.badge, { backgroundColor: cfg.color }]}>
               <Text style={styles.badgeText}>{cfg.label}</Text>
             </View>
-            <Text style={styles.location}>{alert.deviceLocation}</Text>
+            <Text style={styles.location}>Alert from: {alert.deviceLocation}</Text>
             <Text style={styles.time}>{timeAgo(alert.createdAt)}</Text>
           </View>
           <Text style={[styles.message, compact && styles.messageCompact]} numberOfLines={compact ? 1 : 2}>
             {alert.message}
           </Text>
           {!compact && (
-            <View style={styles.confidence}>
-              <View style={[styles.confidenceBar, { width: `${alert.confidence}%`, backgroundColor: cfg.color }]} />
-              <Text style={[styles.confidenceText, { color: cfg.color }]}>
-                {Math.round(alert.confidence)}% confidence
-              </Text>
-            </View>
+            <>
+              <View style={styles.confidence}>
+                <View style={[styles.confidenceBar, { width: `${alert.confidence}%`, backgroundColor: cfg.color }]} />
+                <Text style={[styles.confidenceText, { color: cfg.color }]}>
+                  {Math.round(alert.confidence)}% confidence
+                </Text>
+              </View>
+              {alert.triggeredSensors && alert.triggeredSensors.length > 0 && (
+                <View style={styles.sensorTags}>
+                  {alert.triggeredSensors.map(s => (
+                    <View key={s} style={[styles.sensorTag, { backgroundColor: (SENSOR_COLORS[s] || Colors.textSecondary) + "20", borderColor: (SENSOR_COLORS[s] || Colors.textSecondary) + "50" }]}>
+                      <Text style={[styles.sensorTagText, { color: SENSOR_COLORS[s] || Colors.textSecondary }]}>{s}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {alert.aiSummary && (
+                <View style={styles.aiSection}>
+                  <Text style={styles.aiLabel}>AI Analysis</Text>
+                  <Text style={styles.aiSummary}>{alert.aiSummary}</Text>
+                  {alert.aiAction && (
+                    <Text style={styles.aiAction}>{alert.aiAction}</Text>
+                  )}
+                </View>
+              )}
+            </>
           )}
         </View>
 
@@ -191,6 +218,49 @@ const styles = StyleSheet.create({
   confidenceText: {
     fontSize: 10,
     fontFamily: "Inter_500Medium",
+  },
+  sensorTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  sensorTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  sensorTagText: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.3,
+  },
+  aiSection: {
+    backgroundColor: "rgba(37,99,235,0.08)",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(37,99,235,0.2)",
+    gap: 4,
+  },
+  aiLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: Colors.accent,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  aiSummary: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 17,
+  },
+  aiAction: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    lineHeight: 17,
   },
   dismissBtn: {
     padding: 4,

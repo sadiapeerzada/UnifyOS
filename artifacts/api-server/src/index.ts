@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import http from 'http';
 import app from './app.js';
 import { initWebSocketServer } from './lib/wsServer.js';

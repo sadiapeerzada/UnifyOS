@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "UnifyOS Crisis Dashboard",
-    "slug": "mobile",
+    "name": "UnifyOS",
+    "slug": "unifyos",
     "version": "1.0.0",
+    "description": "Real-time crisis coordination for hospitality venues",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",

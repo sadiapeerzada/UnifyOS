@@ -24,6 +24,8 @@ export function broadcastSensorUpdate(data: {
   severity: string;
   confidence: number;
   message: string;
+  aiSummary?: string;
+  aiAction?: string;
 }) {
   if (!wss) return;
   const payload = JSON.stringify({ type: 'sensor-update', data });
@@ -34,7 +36,7 @@ export function broadcastSensorUpdate(data: {
   });
 }
 
-export function recordHardwarePing(devId: string) {
+export function recordHardwarePing(_devId: string) {
   lastHardwarePing = new Date();
   deviceCount = 1;
 }

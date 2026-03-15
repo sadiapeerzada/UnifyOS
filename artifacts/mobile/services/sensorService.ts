@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ENV } from '@/config/env';
 
 export interface SensorReading {
   temperature: number;
@@ -8,13 +9,16 @@ export interface SensorReading {
   isLive: boolean;
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : 'http://localhost:8080/api';
-
-const WS_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `wss://${process.env.EXPO_PUBLIC_DOMAIN}/api/ws`
-  : 'ws://localhost:8080/api/ws';
+export interface SimulateResult {
+  severity: string;
+  confidence: number;
+  message: string;
+  suggestedAction: string;
+  location: string;
+  triggeredSensors?: string[];
+  aiSummary?: string;
+  aiAction?: string;
+}
 
 function generateDemoReading(motionToggleRef: React.MutableRefObject<{ last: number; state: boolean }>): SensorReading {
   const now = Date.now();
@@ -43,7 +47,7 @@ export function useSensorData(): SensorReading {
 
     async function tryHardwareMode() {
       try {
-        const res = await fetch(`${API_BASE}/status`, { signal: AbortSignal.timeout(3000) });
+        const res = await fetch(`${ENV.BACKEND_URL}/status`, { signal: AbortSignal.timeout(3000) });
         if (!res.ok) return;
         if (cancelled) return;
         connectWebSocket();
@@ -53,7 +57,7 @@ export function useSensorData(): SensorReading {
 
     function connectWebSocket() {
       try {
-        const ws = new WebSocket(WS_BASE);
+        const ws = new WebSocket(ENV.WS_URL);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -69,7 +73,7 @@ export function useSensorData(): SensorReading {
         ws.onmessage = (event) => {
           if (cancelled) return;
           try {
-            const msg = JSON.parse(event.data);
+            const msg = JSON.parse(event.data as string);
             if (msg.type === 'sensor-update' && msg.data) {
               setReading({
                 temperature: msg.data.temperature,
@@ -120,12 +124,23 @@ export function useSensorData(): SensorReading {
   return reading;
 }
 
-export async function simulateEmergency(): Promise<{ severity: string; confidence: number; message: string; suggestedAction: string }> {
-  const res = await fetch(`${API_BASE}/sensor-data`, {
+export async function simulateEmergency(): Promise<SimulateResult> {
+  const res = await fetch(`${ENV.BACKEND_URL}/sensor-data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ temperature: 75, smoke: 750, motion: 1, button: 1, deviceId: 'device-001' }),
   });
   if (!res.ok) throw new Error('Failed to post sensor data');
   return res.json();
+}
+
+export async function checkBackendStatus(): Promise<{ connected: boolean; lastHardwarePing: string | null; uptime: number }> {
+  try {
+    const res = await fetch(`${ENV.BACKEND_URL}/status`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return { connected: false, lastHardwarePing: null, uptime: 0 };
+    const data = await res.json();
+    return { connected: true, lastHardwarePing: data.lastHardwarePing, uptime: data.uptime };
+  } catch {
+    return { connected: false, lastHardwarePing: null, uptime: 0 };
+  }
 }

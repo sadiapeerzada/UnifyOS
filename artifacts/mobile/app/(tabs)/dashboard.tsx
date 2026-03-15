@@ -1,9 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,22 +15,40 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { AlertBanner } from "@/components/AlertBanner";
 import { SensorGauge } from "@/components/SensorGauge";
-import { LiveIndicator } from "@/components/LiveIndicator";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { useAuth } from "@/context/AuthContext";
-import { useSensorData, simulateEmergency } from "@/services/sensorService";
+import { useSensorData, simulateEmergency, checkBackendStatus } from "@/services/sensorService";
+import type { SimulateResult } from "@/services/sensorService";
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { devices, activeAlerts, dismissAlert, getDeviceSensorData, getDeviceAnomaly } = useDashboard();
-  const { currentUser, logout, isDemo } = useAuth();
+  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly } = useDashboard();
+  const { currentUser, logout } = useAuth();
   const sensorData = useSensorData();
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"checking" | "connected" | "demo" | "lost">("checking");
+  const [silenced, setSilenced] = useState(false);
+  const [silenceCountdown, setSilenceCountdown] = useState(0);
+  const silenceRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  useEffect(() => {
+    async function checkStatus() {
+      const result = await checkBackendStatus();
+      setConnectionStatus(result.connected ? (result.lastHardwarePing ? "connected" : "demo") : "demo");
+    }
+    checkStatus();
+    const interval = setInterval(checkStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (sensorData.isLive) setConnectionStatus("connected");
+  }, [sensorData.isLive]);
 
   const criticalCount = activeAlerts.filter(a => a.severity === "CRITICAL").length;
   const highCount = activeAlerts.filter(a => a.severity === "HIGH").length;
@@ -36,7 +56,6 @@ export default function DashboardScreen() {
 
   const worstDevice = devices.find(d => d.status === "critical") || devices.find(d => d.status === "warning") || devices[0];
   const displayData = worstDevice ? getDeviceSensorData(worstDevice.id) : undefined;
-  const displayAnomaly = worstDevice ? getDeviceAnomaly(worstDevice.id) : undefined;
 
   const overallSeverity = criticalCount > 0 ? "CRITICAL" : highCount > 0 ? "HIGH" :
     activeAlerts.length > 0 ? "MEDIUM" : "NORMAL";
@@ -58,18 +77,59 @@ export default function DashboardScreen() {
   async function handleSimulate() {
     setSimulating(true);
     try {
-      const result = await simulateEmergency();
-      Alert.alert(
-        "Emergency Simulated",
-        `Severity: ${result.severity}\nConfidence: ${result.confidence}%\n${result.message}`,
-        [{ text: "OK" }]
-      );
+      const result: SimulateResult = await simulateEmergency();
+      const msg = [
+        `Severity: ${result.severity}`,
+        `Confidence: ${result.confidence}%`,
+        `Location: ${result.location}`,
+        result.message,
+        result.aiSummary ? `\nAI: ${result.aiSummary}` : "",
+        result.aiAction ? `Action: ${result.aiAction}` : "",
+      ].filter(Boolean).join("\n");
+      Alert.alert("Emergency Simulated", msg, [{ text: "OK" }]);
     } catch {
       Alert.alert("Offline", "Backend not reachable — demo data only");
     } finally {
       setSimulating(false);
     }
   }
+
+  function handleSilence() {
+    if (silenced) return;
+    setSilenced(true);
+    setSilenceCountdown(120);
+    silenceRef.current = setInterval(() => {
+      setSilenceCountdown(c => {
+        if (c <= 1) {
+          setSilenced(false);
+          if (silenceRef.current) clearInterval(silenceRef.current);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  }
+
+  async function handleExportLog() {
+    const lines = alerts.slice(0, 50).map(a =>
+      `[${new Date(a.createdAt).toLocaleString()}] ${a.severity} — ${a.deviceLocation} — ${a.message}`
+    );
+    try {
+      await Share.share({ message: lines.join("\n") || "No alerts logged." });
+    } catch {}
+  }
+
+  function handleAllClear() {
+    Alert.alert("All Clear", "Dismiss all active alerts?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Confirm", style: "destructive", onPress: dismissAllAlerts },
+    ]);
+  }
+
+  const connDot = connectionStatus === "connected" ? Colors.normal :
+                  connectionStatus === "lost" ? Colors.critical : Colors.medium;
+  const connLabel = connectionStatus === "connected" ? "Hardware Connected — Live" :
+                    connectionStatus === "lost" ? "Connection Lost — Retrying..." : "Demo Mode — Simulated data";
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -79,7 +139,12 @@ export default function DashboardScreen() {
           <Text style={styles.subtitle}>Live sensor monitoring</Text>
         </View>
         <View style={styles.headerRight}>
-          <LiveIndicator />
+          <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>
+            <View style={[styles.liveDot, { backgroundColor: sensorData.isLive ? Colors.normal : Colors.medium }]} />
+            <Text style={[styles.liveTagText, { color: sensorData.isLive ? Colors.normal : Colors.medium }]}>
+              {sensorData.isLive ? "Live" : "Demo"}
+            </Text>
+          </View>
           <TouchableOpacity
             style={styles.avatar}
             onPress={() => setAvatarOpen(v => !v)}
@@ -104,6 +169,11 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <View style={styles.statusBar}>
+        <View style={[styles.statusDot, { backgroundColor: connDot }]} />
+        <Text style={[styles.statusBarText, { color: connDot }]}>{connLabel}</Text>
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -133,6 +203,27 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnRed]} onPress={handleSimulate} disabled={simulating} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="fire-alert" size={16} color={Colors.critical} />
+            <Text style={[styles.qaBtnText, { color: Colors.critical }]}>{simulating ? "..." : "Test Emergency"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.qaBtn, silenced ? styles.qaBtnAmber : styles.qaBtnDefault]} onPress={handleSilence} disabled={silenced} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="bell-off" size={16} color={silenced ? Colors.medium : Colors.textSecondary} />
+            <Text style={[styles.qaBtnText, { color: silenced ? Colors.medium : Colors.textSecondary }]}>
+              {silenced ? `${silenceCountdown}s` : "Silence 2m"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnDefault]} onPress={handleExportLog} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="export" size={16} color={Colors.textSecondary} />
+            <Text style={[styles.qaBtnText, { color: Colors.textSecondary }]}>Export Log</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnGreen]} onPress={handleAllClear} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="check-all" size={16} color={Colors.normal} />
+            <Text style={[styles.qaBtnText, { color: Colors.normal }]}>All Clear</Text>
+          </TouchableOpacity>
+        </View>
+
         {activeAlerts.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -160,15 +251,7 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{worstDevice.location}</Text>
-              <View style={styles.sectionRight}>
-                <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>
-                  <View style={[styles.liveDot, { backgroundColor: sensorData.isLive ? Colors.normal : Colors.medium }]} />
-                  <Text style={[styles.liveTagText, { color: sensorData.isLive ? Colors.normal : Colors.medium }]}>
-                    {sensorData.isLive ? "Live" : "Demo"}
-                  </Text>
-                </View>
-                <Text style={styles.deviceTag}>{worstDevice.name}</Text>
-              </View>
+              <Text style={styles.deviceTag}>{worstDevice.name}</Text>
             </View>
             <View style={styles.gaugeGrid}>
               <SensorGauge
@@ -230,7 +313,6 @@ export default function DashboardScreen() {
           <View style={styles.deviceGrid}>
             {devices.map(device => {
               const data = getDeviceSensorData(device.id);
-              const anomaly = getDeviceAnomaly(device.id);
               const statusColor = device.status === "critical" ? Colors.critical :
                                   device.status === "warning" ? Colors.high :
                                   device.status === "online" ? Colors.normal : Colors.textMuted;
@@ -255,18 +337,6 @@ export default function DashboardScreen() {
             })}
           </View>
         </View>
-
-        <TouchableOpacity
-          style={[styles.simulateBtn, simulating && { opacity: 0.6 }]}
-          onPress={handleSimulate}
-          disabled={simulating}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="fire-alert" size={16} color={Colors.critical} />
-          <Text style={styles.simulateBtnText}>
-            {simulating ? "Posting..." : "Simulate Emergency"}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -292,9 +362,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
+  liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  liveTagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   avatar: {
     width: 36,
     height: 36,
@@ -326,8 +399,42 @@ const styles = StyleSheet.create({
   dropdownEmail: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginBottom: 8 },
   logoutBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   logoutText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
+  statusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: Colors.bgCard,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+  statusBarText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 16 },
+  quickActions: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  qaBtn: {
+    flex: 1,
+    minWidth: "45%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  qaBtnRed: { borderColor: Colors.criticalBorder, backgroundColor: Colors.criticalBg },
+  qaBtnAmber: { borderColor: "rgba(234,179,8,0.4)", backgroundColor: "rgba(234,179,8,0.1)" },
+  qaBtnGreen: { borderColor: Colors.normalBorder, backgroundColor: Colors.normalBg },
+  qaBtnDefault: { borderColor: Colors.border, backgroundColor: Colors.bgCard },
+  qaBtnText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   statusCard: { borderRadius: 18, borderWidth: 1, padding: 18 },
   statusHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
   statusText: { flex: 1 },
@@ -339,13 +446,9 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 9, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   section: { gap: 10 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
   sectionCount: { fontSize: 12, color: Colors.critical, fontFamily: "Inter_700Bold", backgroundColor: Colors.criticalBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   deviceTag: { fontSize: 11, color: Colors.accent, fontFamily: "Inter_500Medium" },
-  liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
-  liveDot: { width: 6, height: 6, borderRadius: 3 },
-  liveTagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   gaugeGrid: { flexDirection: "row", gap: 10 },
   miniCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: "center", gap: 6, borderWidth: 1 },
   miniCardActive: { backgroundColor: Colors.normalBg, borderColor: Colors.normalBorder },
@@ -360,18 +463,4 @@ const styles = StyleSheet.create({
   deviceMiniName: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.text },
   deviceMiniLoc: { fontSize: 10, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   deviceMiniTemp: { fontSize: 13, fontFamily: "Inter_700Bold", marginTop: 4 },
-  simulateBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.criticalBorder,
-    backgroundColor: Colors.criticalBg,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginTop: 4,
-  },
-  simulateBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
 });

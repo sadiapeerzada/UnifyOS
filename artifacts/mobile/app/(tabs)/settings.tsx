@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
+import { ENV } from "@/config/env";
 
 const SCENARIOS = [
   {
@@ -32,7 +33,7 @@ const SCENARIOS = [
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { scenario, setScenario, alerts } = useDashboard();
+  const { scenario, setScenario, alerts, clearAlertHistory } = useDashboard();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -43,6 +44,13 @@ export default function SettingsScreen() {
     high: alerts.filter(a => a.severity === "HIGH").length,
     medium: alerts.filter(a => a.severity === "MEDIUM").length,
   };
+
+  function handleClearHistory() {
+    Alert.alert("Clear History", "Delete all alert history? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); clearAlertHistory(); } },
+    ]);
+  }
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -102,16 +110,22 @@ export default function SettingsScreen() {
             <StatBox label="High" value={alertStats.high} color={Colors.high} />
             <StatBox label="Medium" value={alertStats.medium} color={Colors.medium} />
           </View>
+
+          <Pressable style={styles.clearBtn} onPress={handleClearHistory}>
+            <Feather name="trash-2" size={14} color={Colors.critical} />
+            <Text style={styles.clearBtnText}>Clear History</Text>
+          </Pressable>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>System Info</Text>
           <View style={styles.infoCard}>
-            <InfoRow label="Platform" value="UnifyOS v1.0" icon="cpu" />
+            <InfoRow label="Platform" value="UnifyOS v1.0.0" icon="cpu" />
             <InfoRow label="Devices Monitored" value="4 Smart Panic Buttons" icon="radio" />
             <InfoRow label="Update Interval" value="2 seconds" icon="refresh-cw" />
             <InfoRow label="Detection Algorithm" value="Statistical Threshold + Rate of Change" icon="activity" />
             <InfoRow label="Max Confidence" value="100%" icon="percent" />
+            <InfoRow label="Backend URL" value={ENV.BACKEND_URL} icon="server" />
           </View>
         </View>
 
@@ -123,6 +137,32 @@ export default function SettingsScreen() {
             <ThresholdRow sensor="Temp Rate" warn="—" alert="+2°C/reading" color={Colors.high} />
             <ThresholdRow sensor="Smoke Rate" warn="—" alert="+100 ppm/reading" color={Colors.medium} />
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Emergency Numbers</Text>
+          <View style={styles.infoCard}>
+            <CallRow label="Emergency (112)" number="112" color={Colors.critical} />
+            <CallRow label="Police (101)" number="101" color={Colors.high} />
+            <CallRow label="Fire & Rescue (102)" number="102" color={Colors.medium} />
+          </View>
+        </View>
+
+        <View style={[styles.section, styles.aboutCard]}>
+          <View style={styles.aboutHeader}>
+            <MaterialCommunityIcons name="shield-check" size={36} color={Colors.accent} />
+            <View>
+              <Text style={styles.aboutTitle}>UnifyOS {ENV.APP_VERSION}</Text>
+              <Text style={styles.aboutSubtitle}>Real-time Crisis Coordination Platform</Text>
+            </View>
+          </View>
+          <Text style={styles.aboutDesc}>Built for Google Solution Challenge 2026</Text>
+          <View style={styles.sdgRow}>
+            {["SDG 3", "SDG 9", "SDG 11"].map(s => (
+              <View key={s} style={styles.sdgChip}><Text style={styles.sdgText}>{s}</Text></View>
+            ))}
+          </View>
+          <Text style={styles.teamText}>Team BlackBit · Asna Mirza · Sadia Peerzada</Text>
         </View>
       </ScrollView>
     </View>
@@ -143,7 +183,7 @@ function InfoRow({ label, value, icon }: { label: string; value: string; icon: s
     <View style={styles.infoRow}>
       <Feather name={icon as any} size={14} color={Colors.textMuted} />
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -161,162 +201,90 @@ function ThresholdRow({ sensor, warn, alert, color }: { sensor: string; warn: st
   );
 }
 
+function CallRow({ label, number, color }: { label: string; number: string; color: string }) {
+  return (
+    <Pressable style={styles.infoRow} onPress={() => Linking.openURL(`tel:${number}`)}>
+      <MaterialCommunityIcons name="phone" size={14} color={color} />
+      <Text style={[styles.infoLabel, { color: Colors.text }]}>{label}</Text>
+      <View style={[styles.callChip, { backgroundColor: color + "20", borderColor: color + "50" }]}>
+        <Text style={[styles.callText, { color }]}>Call</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-  },
+  container: { flex: 1, backgroundColor: Colors.bg },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  title: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textMuted,
-    marginTop: 1,
-  },
+  title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
   scroll: { flex: 1 },
-  scrollContent: {
-    padding: 16,
-    gap: 20,
-  },
-  section: {
-    gap: 10,
-  },
+  scrollContent: { padding: 16, gap: 20 },
+  section: { gap: 10 },
   sectionTitle: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary,
+    textTransform: "uppercase", letterSpacing: 0.5,
   },
-  sectionDesc: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
-  },
+  sectionDesc: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular", lineHeight: 18 },
   scenarioCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    backgroundColor: Colors.bgCard,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    backgroundColor: Colors.bgCard, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: Colors.border,
   },
-  scenarioIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  scenarioText: {
-    flex: 1,
-    gap: 3,
-  },
-  scenarioTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
-  scenarioDesc: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 16,
-  },
-  activeChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  activeText: {
-    fontSize: 9,
-    color: "#fff",
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 0.5,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  scenarioIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  scenarioText: { flex: 1, gap: 3 },
+  scenarioTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  scenarioDesc: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular", lineHeight: 16 },
+  activeChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  activeText: { fontSize: 9, color: "#fff", fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  statsGrid: { flexDirection: "row", gap: 10 },
   statBox: {
-    flex: 1,
-    backgroundColor: Colors.bgCard,
-    borderRadius: 14,
-    padding: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 4,
+    flex: 1, backgroundColor: Colors.bgCard, borderRadius: 14, padding: 14,
+    alignItems: "center", borderWidth: 1, borderColor: Colors.border, gap: 4,
   },
-  statValue: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
+  statValue: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 10, color: Colors.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" },
+  clearBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.criticalBorder,
+    backgroundColor: Colors.criticalBg, paddingVertical: 10,
   },
-  statLabel: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
+  clearBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
   infoCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
+    backgroundColor: Colors.bgCard, borderRadius: 14, borderWidth: 1,
+    borderColor: Colors.border, overflow: "hidden",
   },
   infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
   },
-  infoLabel: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_400Regular",
+  infoLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
+  infoValue: { fontSize: 12, color: Colors.text, fontFamily: "Inter_500Medium", maxWidth: "50%", textAlign: "right" },
+  threshDot: { width: 8, height: 8, borderRadius: 4 },
+  threshValues: { flexDirection: "row", gap: 8 },
+  threshWarn: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  threshAlert: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  callChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  callText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  aboutCard: {
+    backgroundColor: Colors.bgCard, borderRadius: 18, borderWidth: 1,
+    borderColor: Colors.accentGlow, padding: 18,
   },
-  infoValue: {
-    fontSize: 12,
-    color: Colors.text,
-    fontFamily: "Inter_500Medium",
-    maxWidth: "50%",
-    textAlign: "right",
+  aboutHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
+  aboutTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
+  aboutSubtitle: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  aboutDesc: { fontSize: 13, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
+  sdgRow: { flexDirection: "row", gap: 8 },
+  sdgChip: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+    backgroundColor: Colors.accentGlow, borderWidth: 1, borderColor: Colors.accent + "40",
   },
-  threshDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  threshValues: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  threshWarn: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-  },
-  threshAlert: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-  },
+  sdgText: { fontSize: 11, fontFamily: "Inter_700Bold", color: Colors.accentLight },
+  teamText: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
 });

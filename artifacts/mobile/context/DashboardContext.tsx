@@ -30,6 +30,9 @@ export interface Alert {
   action: string;
   dismissed: boolean;
   createdAt: string;
+  aiSummary?: string;
+  aiAction?: string;
+  triggeredSensors?: string[];
 }
 
 export interface AnomalyResult {
@@ -41,10 +44,10 @@ export interface AnomalyResult {
 }
 
 const DEMO_DEVICES: Device[] = [
-  { id: "device-001", name: "Panic Button A", location: "Room 101", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: "device-002", name: "Panic Button B", location: "Lab 205", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: "device-003", name: "Panic Button C", location: "Hallway 3F", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: "device-004", name: "Panic Button D", location: "Server Room", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: "device-001", name: "Panic Button A", location: "Main Lobby", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: "device-002", name: "Panic Button B", location: "Floor 2 East Wing", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: "device-003", name: "Panic Button C", location: "Kitchen", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: "device-004", name: "Panic Button D", location: "Conference Hall", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
 ];
 
 function generateSensorData(deviceId: string, tick: number, scenario: string): SensorData {
@@ -114,6 +117,8 @@ interface DashboardContextValue {
   scenario: string;
   setScenario: (s: string) => void;
   dismissAlert: (id: number) => void;
+  dismissAllAlerts: () => void;
+  clearAlertHistory: () => void;
   getDeviceSensorData: (deviceId: string) => SensorData | undefined;
   getDeviceAnomaly: (deviceId: string) => AnomalyResult | undefined;
   isLive: boolean;
@@ -121,6 +126,8 @@ interface DashboardContextValue {
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
+
+const ALERT_STORAGE_KEY = "unifyos_alert_history";
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [devices, setDevices] = useState<Device[]>(DEMO_DEVICES);
@@ -139,8 +146,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem("alerts").then(raw => {
-      if (raw) setAlerts(JSON.parse(raw));
+    AsyncStorage.getItem(ALERT_STORAGE_KEY).then(raw => {
+      if (raw) {
+        try {
+          setAlerts(JSON.parse(raw));
+        } catch {}
+      }
     });
   }, []);
 
@@ -176,8 +187,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
         };
         setAlerts(prev => {
-          const updated = [newAlert, ...prev].slice(0, 100);
-          AsyncStorage.setItem("alerts", JSON.stringify(updated));
+          const updated = [newAlert, ...prev].slice(0, 50);
+          AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(updated));
           return updated;
         });
       }
@@ -201,9 +212,22 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const dismissAlert = useCallback((id: number) => {
     setAlerts(prev => {
       const updated = prev.map(a => a.id === id ? { ...a, dismissed: true } : a);
-      AsyncStorage.setItem("alerts", JSON.stringify(updated));
+      AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
+  }, []);
+
+  const dismissAllAlerts = useCallback(() => {
+    setAlerts(prev => {
+      const updated = prev.map(a => ({ ...a, dismissed: true }));
+      AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearAlertHistory = useCallback(() => {
+    setAlerts([]);
+    AsyncStorage.removeItem(ALERT_STORAGE_KEY);
   }, []);
 
   const getDeviceSensorData = useCallback((deviceId: string) => {
@@ -226,11 +250,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     scenario,
     setScenario,
     dismissAlert,
+    dismissAllAlerts,
+    clearAlertHistory,
     getDeviceSensorData,
     getDeviceAnomaly,
     isLive: true,
     tick,
-  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, getDeviceSensorData, getDeviceAnomaly, tick]);
+  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, getDeviceSensorData, getDeviceAnomaly, tick]);
 
   return (
     <DashboardContext.Provider value={value}>

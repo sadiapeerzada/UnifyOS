@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import cors from 'cors';
 import { anomalyDetector } from '../lib/anomalyDetector.js';
 import { broadcastSensorUpdate, recordHardwarePing, getStatus } from '../lib/wsServer.js';
+import { generateIncidentSummary } from '../services/gemini.js';
 import { db } from '@workspace/db';
 import { devicesTable, sensorReadingsTable, alertsTable } from '@workspace/db';
 import { eq } from 'drizzle-orm';
@@ -34,14 +35,35 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
     const anomaly = anomalyDetector.checkAnomalies(deviceId, { temperature, smoke, motion, button });
 
-    if (anomaly.severity !== 'NORMAL') {
+    let aiSummary: string | undefined;
+    let aiAction: string | undefined;
+
+    if (anomaly.severity === 'HIGH' || anomaly.severity === 'CRITICAL') {
+      try {
+        const ai = await generateIncidentSummary({
+          location: anomaly.location,
+          severity: anomaly.severity,
+          confidence: anomaly.confidence,
+          triggeredSensors: anomaly.triggeredSensors,
+          temperature,
+          smoke,
+          motion,
+          button,
+          suggestedAction: anomaly.suggestedAction,
+        });
+        aiSummary = ai.summary;
+        aiAction = ai.immediateAction;
+      } catch {}
+    }
+
+    if (anomaly.severity !== 'NORMAL' && anomaly.severity !== 'CALIBRATING') {
       try {
         let deviceName = deviceId;
-        let deviceLocation = 'Unknown';
+        let deviceLocation = anomaly.location;
         const deviceRows = await db.select().from(devicesTable).where(eq(devicesTable.id, deviceId));
         if (deviceRows[0]) {
           deviceName = deviceRows[0].name;
-          deviceLocation = deviceRows[0].location;
+          deviceLocation = deviceRows[0].location || anomaly.location;
           const status = anomaly.severity === 'CRITICAL' ? 'critical' : 'warning';
           await db.update(devicesTable).set({ status }).where(eq(devicesTable.id, deviceId));
         }
@@ -49,7 +71,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
           deviceId,
           deviceName,
           deviceLocation,
-          severity: anomaly.severity,
+          severity: anomaly.severity as any,
           confidence: anomaly.confidence,
           anomalies: anomaly.anomalies,
           message: anomaly.message,
@@ -69,6 +91,8 @@ router.post('/sensor-data', openCors, async (req, res) => {
       severity: anomaly.severity,
       confidence: anomaly.confidence,
       message: anomaly.message,
+      aiSummary,
+      aiAction,
     });
 
     res.json({
@@ -76,8 +100,11 @@ router.post('/sensor-data', openCors, async (req, res) => {
       severity: anomaly.severity,
       confidence: anomaly.confidence,
       message: anomaly.message,
-      suggestedAction: anomaly.action,
-      location: deviceId,
+      suggestedAction: anomaly.suggestedAction,
+      location: anomaly.location,
+      triggeredSensors: anomaly.triggeredSensors,
+      aiSummary,
+      aiAction,
     });
   } catch (err) {
     console.error(err);
