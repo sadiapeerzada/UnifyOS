@@ -49,6 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [, response, promptAsync] = Google.useAuthRequest({
     webClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
+    iosClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
+    androidClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
     redirectUri: AuthSession.makeRedirectUri({ useProxy: true }),
   });
 
