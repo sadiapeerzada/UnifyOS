@@ -19,7 +19,6 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <Text style={styles.demoNote}>Running in Demo Mode</Text>
       </View>
     </View>
   );
@@ -75,11 +74,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
-  },
-  demoNote: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textMuted,
-    marginTop: 8,
   },
 });

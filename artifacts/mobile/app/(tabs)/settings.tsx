@@ -1,11 +1,20 @@
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { ENV } from "@/config/env";
+
+interface AnomalyStats {
+  totalReadings: number;
+  alertsFired: number;
+  criticalAlerts: number;
+  baselineDevices: Record<string, { temp: number; smoke: number; calibrated: boolean }>;
+  falseAlarmRate: string;
+  lastCalibrated: string | null;
+}
 
 const SCENARIOS = [
   {
@@ -34,9 +43,28 @@ const SCENARIOS = [
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { scenario, setScenario, alerts, clearAlertHistory } = useDashboard();
+  const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  useEffect(() => {
+    async function fetchStats() {
+      setStatsLoading(true);
+      try {
+        const res = await fetch(`${ENV.BACKEND_URL}/anomaly-stats`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          setAnomalyStats(data);
+        }
+      } catch {}
+      setStatsLoading(false);
+    }
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const alertStats = {
     total: alerts.length,
@@ -115,6 +143,42 @@ export default function SettingsScreen() {
             <Feather name="trash-2" size={14} color={Colors.critical} />
             <Text style={styles.clearBtnText}>Clear History</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>System Stats</Text>
+          {statsLoading && !anomalyStats ? (
+            <View style={[styles.infoCard, { padding: 16, alignItems: "center" }]}>
+              <Text style={{ fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" }}>Loading stats...</Text>
+            </View>
+          ) : anomalyStats ? (
+            <>
+              <View style={styles.statsGrid}>
+                <StatBox label="Total Readings" value={anomalyStats.totalReadings} color={Colors.text} />
+                <StatBox label="Alerts Fired" value={anomalyStats.alertsFired} color={Colors.high} />
+                <StatBox label="Critical Alerts" value={anomalyStats.criticalAlerts} color={Colors.critical} />
+                <StatBox label="Devices Baselined" value={Object.keys(anomalyStats.baselineDevices).length} color={Colors.normal} />
+              </View>
+              <View style={styles.infoCard}>
+                <InfoRow
+                  label="False Alarm Rate"
+                  value={anomalyStats.falseAlarmRate}
+                  icon="activity"
+                />
+                <InfoRow
+                  label="Last Calibrated"
+                  value={anomalyStats.lastCalibrated
+                    ? new Date(anomalyStats.lastCalibrated).toLocaleTimeString()
+                    : "Not yet"}
+                  icon="clock"
+                />
+              </View>
+            </>
+          ) : (
+            <View style={[styles.infoCard, { padding: 16, alignItems: "center" }]}>
+              <Text style={{ fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" }}>Backend offline — stats unavailable</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>

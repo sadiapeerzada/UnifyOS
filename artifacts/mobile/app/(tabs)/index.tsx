@@ -125,8 +125,6 @@ export default function HomeScreen() {
               <Text style={styles.secondaryBtnText}>Continue as Guest</Text>
             </Pressable>
           </View>
-          <Text style={styles.demoHint}>Demo mode available without sign in</Text>
-
           <View style={[styles.statusBanner, { backgroundColor: statusColor + "12", borderColor: statusColor + "40" }]}>
             <MaterialCommunityIcons
               name={overallStatus === "CRITICAL" ? "fire-alert" : overallStatus === "ACTIVE" ? "alert" : "shield-check"}
@@ -362,13 +360,6 @@ const styles = StyleSheet.create({
   heroCTARow: {
     flexDirection: "row",
     gap: 10,
-  },
-  demoHint: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textMuted,
-    textAlign: "center",
-    marginTop: -4,
   },
   primaryBtn: {
     flex: 1,

@@ -32,6 +32,7 @@ export interface Alert {
   createdAt: string;
   aiSummary?: string;
   aiAction?: string;
+  aiEstimatedCause?: string;
   triggeredSensors?: string[];
 }
 

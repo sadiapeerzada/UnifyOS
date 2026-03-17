@@ -124,6 +124,12 @@ export function AlertBanner({ alert, onDismiss, onPress, compact }: AlertBannerP
                 <View style={styles.aiSection}>
                   <Text style={styles.aiLabel}>AI Analysis</Text>
                   <Text style={styles.aiSummary}>{alert.aiSummary}</Text>
+                  {alert.aiEstimatedCause && (
+                    <View style={styles.causeRow}>
+                      <Text style={styles.causeLabel}>Estimated Cause: </Text>
+                      <Text style={styles.causeText}>{alert.aiEstimatedCause}</Text>
+                    </View>
+                  )}
                   {alert.aiAction && (
                     <Text style={styles.aiAction}>{alert.aiAction}</Text>
                   )}
@@ -261,6 +267,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: Colors.text,
     lineHeight: 17,
+  },
+  causeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  causeLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
+  },
+  causeText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textMuted,
+    flex: 1,
   },
   dismissBtn: {
     padding: 4,

@@ -24,8 +24,6 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <Text style={styles.demoNote}>Currently in Demo Mode</Text>
-
         <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
           <Text style={styles.backText}>← Back to Dashboard</Text>
         </TouchableOpacity>
@@ -84,12 +82,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
-  },
-  demoNote: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textMuted,
-    marginTop: 4,
   },
   backLink: {
     marginTop: 16,

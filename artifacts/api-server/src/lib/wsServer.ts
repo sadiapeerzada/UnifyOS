@@ -26,6 +26,7 @@ export function broadcastSensorUpdate(data: {
   message: string;
   aiSummary?: string;
   aiAction?: string;
+  aiEstimatedCause?: string;
 }) {
   if (!wss) return;
   const payload = JSON.stringify({ type: 'sensor-update', data });

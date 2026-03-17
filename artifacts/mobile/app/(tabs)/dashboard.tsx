@@ -84,6 +84,7 @@ export default function DashboardScreen() {
         `Location: ${result.location}`,
         result.message,
         result.aiSummary ? `\nAI: ${result.aiSummary}` : "",
+        result.aiEstimatedCause ? `Cause: ${result.aiEstimatedCause}` : "",
         result.aiAction ? `Action: ${result.aiAction}` : "",
       ].filter(Boolean).join("\n");
       Alert.alert("Emergency Simulated", msg, [{ text: "OK" }]);

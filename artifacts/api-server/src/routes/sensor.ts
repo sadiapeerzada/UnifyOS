@@ -37,6 +37,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
     let aiSummary: string | undefined;
     let aiAction: string | undefined;
+    let aiEstimatedCause: string | undefined;
 
     if (anomaly.severity === 'HIGH' || anomaly.severity === 'CRITICAL') {
       try {
@@ -50,9 +51,11 @@ router.post('/sensor-data', openCors, async (req, res) => {
           motion,
           button,
           suggestedAction: anomaly.suggestedAction,
+          explanation: anomaly.explanation,
         });
         aiSummary = ai.summary;
         aiAction = ai.immediateAction;
+        aiEstimatedCause = ai.estimatedCause;
       } catch {}
     }
 
@@ -93,6 +96,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
       message: anomaly.message,
       aiSummary,
       aiAction,
+      aiEstimatedCause,
     });
 
     res.json({
@@ -105,6 +109,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
       triggeredSensors: anomaly.triggeredSensors,
       aiSummary,
       aiAction,
+      aiEstimatedCause,
     });
   } catch (err) {
     console.error(err);

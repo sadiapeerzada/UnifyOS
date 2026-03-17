@@ -18,6 +18,7 @@ export interface SimulateResult {
   triggeredSensors?: string[];
   aiSummary?: string;
   aiAction?: string;
+  aiEstimatedCause?: string;
 }
 
 function generateDemoReading(motionToggleRef: React.MutableRefObject<{ last: number; state: boolean }>): SensorReading {
