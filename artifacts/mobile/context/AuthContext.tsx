@@ -1,7 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import * as AuthSession from 'expo-auth-session';
+import {
+  GoogleAuthProvider,
+  signInWithCredential,
+  onAuthStateChanged,
+  signOut as firebaseSignOut,
+} from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 
@@ -11,6 +17,7 @@ interface AuthUser {
   uid: string;
   name: string;
   email: string;
+  photo?: string;
   role: 'admin' | 'responder';
   isDemo: boolean;
 }
@@ -22,45 +29,57 @@ interface AuthContextValue {
   isLoading: boolean;
   login: () => void;
   logout: () => Promise<void>;
+  continueAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// TODO: Add these client IDs from Firebase Console
-// Go to Firebase Console → Project Settings → Your Apps
-// Add an Android app and iOS app to get client IDs
-// For now app works in demo mode until client IDs are added
-const GOOGLE_CLIENT_IDS = {
-  androidClientId: '537179931085-REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-  iosClientId: '537179931085-REPLACE_WITH_IOS_CLIENT_ID.apps.googleusercontent.com',
-  webClientId: process.env.GOOGLE_WEB_CLIENT_ID || 'GOOGLE_WEB_CLIENT_ID_NOT_CONFIGURED',
+const GUEST_USER: AuthUser = {
+  uid: 'guest-001',
+  name: 'Guest User',
+  email: '',
+  role: 'admin',
+  isDemo: true,
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser>(GUEST_USER);
+  const [userRole, setUserRole] = useState<'admin' | 'responder'>('admin');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [request, response, promptAsync] = Google.useAuthRequest(GOOGLE_CLIENT_IDS);
+  const [, response, promptAsync] = Google.useAuthRequest({
+    webClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
+    redirectUri: AuthSession.makeRedirectUri({ useProxy: true }),
+  });
+
+  const continueAsGuest = useCallback(() => {
+    setCurrentUser(GUEST_USER);
+    setUserRole('admin');
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        const role = userDoc.exists() ? (userDoc.data().role || 'admin') : 'admin';
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const userSnap = await getDoc(userDocRef);
+        const role = userSnap.exists() ? (userSnap.data().role || 'admin') : 'admin';
         setCurrentUser({
           uid: firebaseUser.uid,
           name: firebaseUser.displayName || 'User',
           email: firebaseUser.email || '',
+          photo: firebaseUser.photoURL || undefined,
           role,
           isDemo: false,
         });
+        setUserRole(role);
+        setIsLoading(false);
       } else {
-        setCurrentUser(null);
+        continueAsGuest();
       }
-      setIsLoading(false);
     });
     return unsub;
-  }, []);
+  }, [continueAsGuest]);
 
   useEffect(() => {
     if (response?.type === 'success') {
@@ -68,11 +87,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const credential = GoogleAuthProvider.credential(id_token);
       setIsLoading(true);
       signInWithCredential(auth, credential)
-        .then(async (userCredential) => {
-          const user = userCredential.user;
+        .then(async (result) => {
+          const user = result.user;
           const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (!userDoc.exists()) {
+          const userSnap = await getDoc(userDocRef);
+          if (!userSnap.exists()) {
             await setDoc(userDocRef, {
               name: user.displayName,
               email: user.email,
@@ -80,31 +99,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               createdAt: new Date(),
             });
           }
+          const role = userSnap.exists() ? userSnap.data().role : 'admin';
+          setUserRole(role);
         })
-        .catch(console.error)
+        .catch((err) => {
+          console.error('Sign in error:', err);
+          continueAsGuest();
+        })
         .finally(() => setIsLoading(false));
+    } else if (response?.type === 'error' || response?.type === 'dismiss') {
+      continueAsGuest();
     }
-  }, [response]);
+  }, [response, continueAsGuest]);
 
   const login = useCallback(() => {
-    promptAsync();
-  }, [promptAsync]);
+    try {
+      promptAsync({ useProxy: true });
+    } catch (err) {
+      console.error('Login error:', err);
+      continueAsGuest();
+    }
+  }, [promptAsync, continueAsGuest]);
 
   const logout = useCallback(async () => {
-    await firebaseSignOut(auth);
-    setCurrentUser(null);
-  }, []);
+    try {
+      await firebaseSignOut(auth);
+    } catch {
+      continueAsGuest();
+    }
+  }, [continueAsGuest]);
 
-  const isDemo = !currentUser;
+  const isDemo = currentUser.isDemo;
 
   const value = useMemo<AuthContextValue>(() => ({
     currentUser,
-    userRole: currentUser?.role || 'responder',
+    userRole,
     isDemo,
     isLoading,
     login,
     logout,
-  }), [currentUser, isDemo, isLoading, login, logout]);
+    continueAsGuest,
+  }), [currentUser, userRole, isDemo, isLoading, login, logout, continueAsGuest]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
