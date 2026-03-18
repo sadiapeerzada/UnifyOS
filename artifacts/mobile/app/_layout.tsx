@@ -3,8 +3,8 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts,
 } from "@expo-google-fonts/inter";
+import * as Font from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -26,8 +26,28 @@ import { AuthWrapper } from "@/components/AuthWrapper";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
-
 const ONBOARDING_KEY = "unifyos_onboarding_done";
+const FONT_TIMEOUT_MS = 5000;
+
+async function loadFontsWithTimeout(): Promise<void> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const fontPromise = Font.loadAsync({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  }).catch((e: unknown) => {
+    console.warn("Font load failed — using system font:", e);
+  });
+
+  const timeoutPromise = new Promise<void>(resolve => {
+    timeoutId = setTimeout(() => resolve(), FONT_TIMEOUT_MS);
+  });
+
+  await Promise.race([fontPromise, timeoutPromise]);
+  clearTimeout(timeoutId!);
+}
 
 function LoadingScreen({ onDone }: { onDone: () => void }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -60,7 +80,12 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
           <MaterialCommunityIcons name="shield-check" size={56} color="#1A73E8" />
         </View>
         <Text style={styles.loadingTitle}>UnifyOS</Text>
-        <Animated.Text style={[styles.loadingSubtitle, { opacity: dotAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }]}>
+        <Animated.Text
+          style={[
+            styles.loadingSubtitle,
+            { opacity: dotAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) },
+          ]}
+        >
           Initialising sensors...
         </Animated.Text>
       </View>
@@ -81,32 +106,34 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
-
+  const [appReady, setAppReady] = useState(false);
   const [showLoading, setShowLoading] = useState(true);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+    async function prepare() {
+      try {
+        await loadFontsWithTimeout();
+      } finally {
+        try {
+          await SplashScreen.hideAsync();
+        } catch {}
+        setAppReady(true);
+      }
     }
-  }, [fontsLoaded, fontError]);
+    prepare();
+  }, []);
 
   async function handleLoadingDone() {
     setShowLoading(false);
-    const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
-    if (!onboardingDone) {
-      router.replace("/onboarding");
-    }
-    setReady(true);
+    try {
+      const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
+      if (!onboardingDone) {
+        router.replace("/onboarding");
+      }
+    } catch {}
   }
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!appReady) return null;
 
   return (
     <SafeAreaProvider>
