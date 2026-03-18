@@ -30,6 +30,7 @@ export interface Alert {
   message: string;
   action: string;
   dismissed: boolean;
+  seen: boolean;
   createdAt: string;
   aiSummary?: string;
   aiAction?: string;
@@ -139,6 +140,7 @@ interface DashboardContextValue {
   dismissAlert: (id: number) => void;
   dismissAllAlerts: () => void;
   clearAlertHistory: () => void;
+  markAlertsSeen: () => void;
   getDeviceSensorData: (deviceId: string) => SensorData | undefined;
   getDeviceAnomaly: (deviceId: string) => AnomalyResult | undefined;
   isLive: boolean;
@@ -205,6 +207,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           message: anomaly.message,
           action: anomaly.action,
           dismissed: false,
+          seen: false,
           createdAt: new Date().toISOString(),
           ...(isHighOrCritical ? { translatedMessages: DEMO_TRANSLATED_MESSAGES } : {}),
         };
@@ -265,6 +268,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.removeItem(ALERT_STORAGE_KEY);
   }, []);
 
+  const markAlertsSeen = useCallback(() => {
+    setAlerts(prev => {
+      const updated = prev.map(a => ({ ...a, seen: true }));
+      AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const getDeviceSensorData = useCallback((deviceId: string) => {
     return sensorDataRef.current.get(deviceId);
   }, []);
@@ -287,11 +298,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     dismissAlert,
     dismissAllAlerts,
     clearAlertHistory,
+    markAlertsSeen,
     getDeviceSensorData,
     getDeviceAnomaly,
     isLive: true,
     tick,
-  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, getDeviceSensorData, getDeviceAnomaly, tick]);
+  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, tick]);
 
   return (
     <DashboardContext.Provider value={value}>

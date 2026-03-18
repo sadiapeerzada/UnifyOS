@@ -238,7 +238,35 @@ export default function SettingsScreen() {
               accessibilityLabel="Set up device"
             >
               <MaterialCommunityIcons name="qrcode-scan" size={14} color={Colors.accent} />
-              <Text style={[styles.infoLabel, { color: Colors.text }]}>Set Up Device</Text>
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>Manage Device</Text>
+              <Feather name="chevron-right" size={14} color={Colors.textMuted} />
+            </Pressable>
+            <Pressable
+              style={styles.infoRow}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                Alert.alert(
+                  "Reset Device Setup",
+                  "This will clear your device configuration. The setup wizard will run on next launch.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Reset",
+                      style: "destructive",
+                      onPress: async () => {
+                        await AsyncStorage.multiRemove(["seen_device_intro", "device_configured"]);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        Alert.alert("Reset Complete", "Restart the app to run setup again.");
+                      },
+                    },
+                  ]
+                );
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Reset device setup"
+            >
+              <MaterialCommunityIcons name="refresh" size={14} color={Colors.critical} />
+              <Text style={[styles.infoLabel, { color: Colors.critical }]}>Reset Device Setup</Text>
               <Feather name="chevron-right" size={14} color={Colors.textMuted} />
             </Pressable>
           </View>

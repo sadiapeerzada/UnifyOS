@@ -1,17 +1,22 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
+import { Tabs, usePathname } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 
 function NativeTabLayout() {
-  const { activeAlerts } = useDashboard();
-  const alertCount = activeAlerts.length;
+  const { activeAlerts, markAlertsSeen } = useDashboard();
+  const alertCount = activeAlerts.filter(a => !a.seen).length;
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (pathname === "/alerts") markAlertsSeen?.();
+  }, [pathname]);
 
   return (
     <NativeTabs>
@@ -28,8 +33,8 @@ function NativeTabLayout() {
         <Label>Alerts</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
-        <Icon sf={{ default: "slider.horizontal.3", selected: "slider.horizontal.3" }} />
-        <Label>Scenarios</Label>
+        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
+        <Label>Settings</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -38,7 +43,13 @@ function NativeTabLayout() {
 function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
-  const { activeAlerts } = useDashboard();
+  const { activeAlerts, markAlertsSeen } = useDashboard();
+  const pathname = usePathname();
+  const unseenCount = activeAlerts.filter(a => !a.seen).length;
+
+  useEffect(() => {
+    if (pathname === "/alerts") markAlertsSeen?.();
+  }, [pathname]);
 
   return (
     <Tabs
@@ -94,7 +105,7 @@ function ClassicTabLayout() {
         name="alerts"
         options={{
           title: "Alerts",
-          tabBarBadge: activeAlerts.length > 0 ? activeAlerts.length : undefined,
+          tabBarBadge: unseenCount > 0 ? unseenCount : undefined,
           tabBarBadgeStyle: { backgroundColor: Colors.critical },
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
@@ -107,15 +118,16 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Scenarios",
+          title: "Settings",
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
-              <SymbolView name="slider.horizontal.3" tintColor={color} size={size} />
+              <SymbolView name="gearshape" tintColor={color} size={size} />
             ) : (
-              <Feather name="sliders" size={size} color={color} />
+              <Feather name="settings" size={size} color={color} />
             ),
         }}
       />
+      <Tabs.Screen name="dashboard" options={{ href: null }} />
     </Tabs>
   );
 }

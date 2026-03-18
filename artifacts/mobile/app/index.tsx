@@ -10,14 +10,29 @@ import {
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
+
+async function navigateAfterAuth() {
+  const seen = await AsyncStorage.getItem("seen_device_intro");
+  if (!seen) {
+    router.replace('/device-intro');
+    return;
+  }
+  const configured = await AsyncStorage.getItem("device_configured");
+  if (!configured) {
+    router.replace('/device-setup');
+    return;
+  }
+  router.replace('/(tabs)/dashboard');
+}
 
 export default function LandingScreen() {
   const { currentUser, isLoading, login, continueAsGuest } = useAuth();
 
   useEffect(() => {
     if (!isLoading && currentUser && !currentUser.isDemo) {
-      router.replace('/(tabs)/dashboard');
+      navigateAfterAuth();
     }
   }, [currentUser, isLoading]);
 
@@ -29,9 +44,9 @@ export default function LandingScreen() {
     );
   }
 
-  function handleContinueAsGuest() {
+  async function handleContinueAsGuest() {
     continueAsGuest();
-    router.replace('/(tabs)/dashboard');
+    await navigateAfterAuth();
   }
 
   return (
