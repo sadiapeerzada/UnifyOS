@@ -4,6 +4,7 @@ import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Te
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { ENV } from "@/config/env";
@@ -215,6 +216,32 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionDesc, { marginTop: 2 }]}>
             Speaks the emergency alert aloud when CRITICAL severity is detected.
           </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Device Management</Text>
+          <View style={styles.infoCard}>
+            <Pressable
+              style={styles.infoRow}
+              onPress={() => { Haptics.selectionAsync(); router.push("/device-intro"); }}
+              accessibilityRole="button"
+              accessibilityLabel="About our Hardware"
+            >
+              <MaterialCommunityIcons name="chip" size={14} color={Colors.accent} />
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>About our Hardware</Text>
+              <Feather name="chevron-right" size={14} color={Colors.textMuted} />
+            </Pressable>
+            <Pressable
+              style={styles.infoRow}
+              onPress={() => { Haptics.selectionAsync(); router.push("/device-setup"); }}
+              accessibilityRole="button"
+              accessibilityLabel="Set up device"
+            >
+              <MaterialCommunityIcons name="qrcode-scan" size={14} color={Colors.accent} />
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>Set Up Device</Text>
+              <Feather name="chevron-right" size={14} color={Colors.textMuted} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.section}>

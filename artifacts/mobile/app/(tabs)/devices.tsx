@@ -1,7 +1,9 @@
+import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { DeviceCard } from "@/components/DeviceCard";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { Colors } from "@/constants/colors";
@@ -25,7 +27,18 @@ export default function DevicesScreen() {
           <Text style={styles.title}>Devices</Text>
           <Text style={styles.subtitle}>{devices.length} device registered · Single device deployment</Text>
         </View>
-        <LiveIndicator />
+        <View style={styles.headerRight}>
+          <Pressable
+            style={styles.editBtn}
+            onPress={() => { Haptics.selectionAsync(); router.push("/device-setup"); }}
+            accessibilityRole="button"
+            accessibilityLabel="Edit device setup"
+          >
+            <Feather name="edit-2" size={14} color={Colors.accent} />
+            <Text style={styles.editBtnText}>Edit</Text>
+          </Pressable>
+          <LiveIndicator />
+        </View>
       </View>
 
       <ScrollView
@@ -123,5 +136,26 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Colors.accentGlow,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: Colors.accent + "40",
+  },
+  editBtnText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.accent,
   },
 });

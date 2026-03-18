@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DashboardProvider } from "@/context/DashboardContext";
@@ -25,7 +26,13 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   useEffect(() => {
-    async function handleDeepLink() {
+    async function checkIntroAndDeepLink() {
+      const seen = await AsyncStorage.getItem("seen_device_intro");
+      if (!seen) {
+        router.replace("/device-intro");
+        return;
+      }
+
       const initialUrl = await Linking.getInitialURL();
       if (initialUrl) {
         const parsed = Linking.parse(initialUrl);
@@ -35,7 +42,7 @@ function RootLayoutNav() {
         }
       }
     }
-    handleDeepLink();
+    checkIntroAndDeepLink();
 
     const subscription = Linking.addEventListener("url", ({ url }) => {
       const parsed = Linking.parse(url);
@@ -52,6 +59,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="device/[id]" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="device-setup" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="device-intro" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );

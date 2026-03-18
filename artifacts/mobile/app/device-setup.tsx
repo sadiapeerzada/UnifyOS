@@ -23,6 +23,7 @@ export default function DeviceSetupScreen() {
   const insets = useSafeAreaInsets();
   const { device_id } = useLocalSearchParams<{ device_id: string }>();
   const { currentUser } = useAuth();
+  const [name, setName] = useState("Smart Panic Button");
   const [location, setLocation] = useState("");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -33,28 +34,35 @@ export default function DeviceSetupScreen() {
   async function handleConfirm() {
     if (!location.trim()) return;
     setSaving(true);
+    const payload = {
+      device_id: deviceId,
+      name: name.trim() || "Smart Panic Button",
+      location: location.trim(),
+      setup_by: currentUser?.email || "guest",
+      setup_at: new Date().toISOString(),
+      status: "online",
+    };
     try {
-      await setDoc(doc(db, "devices", deviceId), {
-        device_id: deviceId,
-        location: location.trim(),
-        setup_by: currentUser?.email || "guest",
-        setup_at: new Date().toISOString(),
-        status: "online",
-      });
-      setSuccess(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => {
-        router.replace("/(tabs)/dashboard");
-      }, 1500);
+      await setDoc(doc(db, "devices", deviceId), payload);
     } catch (err) {
-      console.error("Device setup error:", err);
-      setSuccess(true);
-      setTimeout(() => {
-        router.replace("/(tabs)/dashboard");
-      }, 1500);
-    } finally {
-      setSaving(false);
+      console.error("Firestore device setup error:", err);
     }
+    try {
+      const { ENV } = await import("@/config/env");
+      await fetch(`${ENV.BACKEND_URL}/api/devices/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // backend unreachable is non-fatal
+    }
+    setSaving(false);
+    setSuccess(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => {
+      router.replace("/(tabs)/dashboard");
+    }, 1500);
   }
 
   if (success) {
@@ -93,6 +101,17 @@ export default function DeviceSetupScreen() {
           </View>
           <View style={[styles.onlineDot]} />
         </View>
+
+        <Text style={styles.label}>Device Display Name</Text>
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. Smart Panic Button, Sensor Node A"
+          placeholderTextColor={Colors.textMuted}
+          autoCapitalize="words"
+          returnKeyType="next"
+        />
 
         <Text style={styles.label}>Location Name</Text>
         <TextInput

@@ -19,6 +19,37 @@ router.get("/devices", async (_req, res) => {
   }
 });
 
+router.post("/devices/register", async (req, res) => {
+  try {
+    const { device_id, name, location } = req.body;
+    const id = device_id as string;
+    if (!id) { res.status(400).json({ error: "device_id required" }); return; }
+
+    const existing = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
+    if (existing.length > 0) {
+      await db.update(devicesTable).set({ name, location, lastSeen: new Date() }).where(eq(devicesTable.id, id));
+      res.json({ ok: true, updated: true });
+      return;
+    }
+
+    const [device] = await db.insert(devicesTable).values({
+      id,
+      name: name ?? "Smart Panic Button",
+      location: location ?? "Unknown",
+      status: "online",
+      lastSeen: new Date(),
+      createdAt: new Date(),
+    }).returning();
+
+    res.status(201).json({
+      ok: true,
+      device: { ...device, lastSeen: device.lastSeen.toISOString(), createdAt: device.createdAt.toISOString() },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to register device" });
+  }
+});
+
 router.post("/devices", async (req, res) => {
   try {
     const { id, name, location } = req.body;
