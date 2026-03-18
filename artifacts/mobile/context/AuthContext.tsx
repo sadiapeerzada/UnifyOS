@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     webClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
     iosClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
     androidClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
-    redirectUri: AuthSession.makeRedirectUri({ useProxy: true, projectNameForProxy: "@sadiapeerzada/unifyos" }),
+    redirectUri: AuthSession.makeRedirectUri({ useProxy: false, scheme: "unifyos" }),
   });
 
   const continueAsGuest = useCallback(() => {
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(() => {
     try {
-      promptAsync({ useProxy: true });
+      promptAsync({ useProxy: false });
     } catch (err) {
       console.error('Login error:', err);
       continueAsGuest();
