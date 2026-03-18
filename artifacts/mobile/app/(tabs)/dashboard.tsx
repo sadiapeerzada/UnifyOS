@@ -20,10 +20,11 @@ import { useDashboard } from "@/context/DashboardContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSensorData, simulateEmergency, checkBackendStatus } from "@/services/sensorService";
 import type { SimulateResult } from "@/services/sensorService";
+import { ENV } from "@/config/env";
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly } = useDashboard();
+  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly, offlineDevices } = useDashboard();
   const { currentUser, logout } = useAuth();
   const sensorData = useSensorData();
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -32,6 +33,7 @@ export default function DashboardScreen() {
   const [silenced, setSilenced] = useState(false);
   const [silenceCountdown, setSilenceCountdown] = useState(0);
   const silenceRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [backendOfflineDevices, setBackendOfflineDevices] = useState<string[]>([]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -43,6 +45,21 @@ export default function DashboardScreen() {
     }
     checkStatus();
     const interval = setInterval(checkStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    async function fetchDeviceStatuses() {
+      try {
+        const res = await fetch(`${ENV.BACKEND_URL}/devices/status`, { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const data = await res.json();
+          setBackendOfflineDevices(data.offlineDevices ?? []);
+        }
+      } catch {}
+    }
+    fetchDeviceStatuses();
+    const interval = setInterval(fetchDeviceStatuses, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -132,6 +149,8 @@ export default function DashboardScreen() {
   const connLabel = connectionStatus === "connected" ? "Hardware Connected — Live" :
                     connectionStatus === "lost" ? "Connection Lost — Retrying..." : "Demo Mode — Simulated data";
 
+  const allOffline = backendOfflineDevices.length > 0 ? backendOfflineDevices : [];
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
@@ -187,6 +206,15 @@ export default function DashboardScreen() {
         <Text style={[styles.statusBarText, { color: connDot }]}>{connLabel}</Text>
       </View>
 
+      {allOffline.length > 0 && (
+        <View style={styles.offlineBanner} accessibilityLabel={`${allOffline.length} device offline: ${allOffline.join(', ')}`} accessibilityRole="alert">
+          <MaterialCommunityIcons name="wifi-off" size={14} color="#fff" accessibilityElementsHidden />
+          <Text style={styles.offlineBannerText}>
+            {allOffline.length} device{allOffline.length > 1 ? 's' : ''} offline — {allOffline.join(', ')}
+          </Text>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 100 }]}
@@ -216,23 +244,33 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.quickActions}>
-          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnRed]} onPress={handleSimulate} disabled={simulating} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="fire-alert" size={16} color={Colors.critical} />
+          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnRed]} onPress={handleSimulate} disabled={simulating} activeOpacity={0.8} accessibilityLabel="Test emergency" accessibilityRole="button">
+            <MaterialCommunityIcons name="fire-alert" size={16} color={Colors.critical} accessibilityElementsHidden />
             <Text style={[styles.qaBtnText, { color: Colors.critical }]}>{simulating ? "..." : "Test Emergency"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.qaBtn, silenced ? styles.qaBtnAmber : styles.qaBtnDefault]} onPress={handleSilence} disabled={silenced} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="bell-off" size={16} color={silenced ? Colors.medium : Colors.textSecondary} />
+          <TouchableOpacity style={[styles.qaBtn, silenced ? styles.qaBtnAmber : styles.qaBtnDefault]} onPress={handleSilence} disabled={silenced} activeOpacity={0.8} accessibilityLabel={silenced ? `Silenced for ${silenceCountdown} seconds` : "Silence alerts for 2 minutes"} accessibilityRole="button">
+            <MaterialCommunityIcons name="bell-off" size={16} color={silenced ? Colors.medium : Colors.textSecondary} accessibilityElementsHidden />
             <Text style={[styles.qaBtnText, { color: silenced ? Colors.medium : Colors.textSecondary }]}>
               {silenced ? `${silenceCountdown}s` : "Silence 2m"}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnDefault]} onPress={handleExportLog} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="export" size={16} color={Colors.textSecondary} />
+          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnDefault]} onPress={handleExportLog} activeOpacity={0.8} accessibilityLabel="Export alert log" accessibilityRole="button">
+            <MaterialCommunityIcons name="export" size={16} color={Colors.textSecondary} accessibilityElementsHidden />
             <Text style={[styles.qaBtnText, { color: Colors.textSecondary }]}>Export Log</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnGreen]} onPress={handleAllClear} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="check-all" size={16} color={Colors.normal} />
+          <TouchableOpacity style={[styles.qaBtn, styles.qaBtnGreen]} onPress={handleAllClear} activeOpacity={0.8} accessibilityLabel="Dismiss all alerts" accessibilityRole="button">
+            <MaterialCommunityIcons name="check-all" size={16} color={Colors.normal} accessibilityElementsHidden />
             <Text style={[styles.qaBtnText, { color: Colors.normal }]}>All Clear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.qaBtn, styles.qaBtnDefault, { minWidth: "100%" }]}
+            onPress={() => router.push("/guest-status")}
+            activeOpacity={0.8}
+            accessibilityLabel="Preview guest emergency status screen"
+            accessibilityRole="button"
+          >
+            <MaterialCommunityIcons name="account-eye" size={16} color={Colors.accent} accessibilityElementsHidden />
+            <Text style={[styles.qaBtnText, { color: Colors.accent }]}>Guest View</Text>
           </TouchableOpacity>
         </View>
 
@@ -435,6 +473,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgCard,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: Colors.critical,
+  },
+  offlineBannerText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#fff",
+    flex: 1,
   },
   statusDot: { width: 7, height: 7, borderRadius: 3.5 },
   statusBarText: { fontSize: 11, fontFamily: "Inter_500Medium" },

@@ -78,7 +78,7 @@ export default function LandingScreen() {
       <View style={styles.footer}>
         <Text style={styles.footerLine}>Team BlackBit · Google Solution Challenge 2026</Text>
         <View style={styles.sdgRow}>
-          {['SDG 3', 'SDG 9', 'SDG 11'].map(s => (
+          {['SDG 3', 'SDG 10', 'SDG 11', 'SDG 17'].map(s => (
             <View key={s} style={styles.sdgChip}>
               <Text style={styles.sdgText}>{s}</Text>
             </View>

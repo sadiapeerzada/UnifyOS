@@ -18,6 +18,25 @@ const STATUS_COLORS = {
   critical: Colors.critical,
 };
 
+function BatteryIcon({ level }: { level: number }) {
+  const color = level >= 80 ? Colors.normal : level >= 40 ? Colors.medium : Colors.critical;
+  const iconName = level >= 80 ? "battery" : level >= 40 ? "battery-50" : level >= 10 ? "battery-20" : "battery-alert";
+  return (
+    <View style={styles.batteryRow}>
+      <MaterialCommunityIcons
+        name={iconName as any}
+        size={14}
+        color={color}
+        accessibilityElementsHidden
+      />
+      <Text style={[styles.batteryText, { color }]}>{level}%</Text>
+      {level < 10 && (
+        <Text style={styles.batteryCritical} accessibilityLabel="Battery critical">Battery critical</Text>
+      )}
+    </View>
+  );
+}
+
 export function DeviceCard({ device, sensorData, anomaly, onPress }: DeviceCardProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const dotOpacity = useRef(new Animated.Value(1)).current;
@@ -25,6 +44,7 @@ export function DeviceCard({ device, sensorData, anomaly, onPress }: DeviceCardP
   const statusColor = STATUS_COLORS[device.status] ?? Colors.textMuted;
   const isCritical = device.status === "critical";
   const isWarning = device.status === "warning";
+  const isOffline = device.status === "offline";
 
   useEffect(() => {
     if (isCritical || isWarning) {
@@ -54,48 +74,72 @@ export function DeviceCard({ device, sensorData, anomaly, onPress }: DeviceCardP
   const smokeColor = sensorData && sensorData.smoke > 400 ? Colors.critical :
                      sensorData && sensorData.smoke > 250 ? Colors.high : Colors.smoke;
 
+  const battery = device.battery ?? sensorData?.battery;
+
   return (
     <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
-      <Pressable onPress={handlePress} style={[
-        styles.container,
-        isCritical && styles.containerCritical,
-        isWarning && styles.containerWarning,
-      ]}>
+      <Pressable
+        onPress={handlePress}
+        style={[
+          styles.container,
+          isCritical && styles.containerCritical,
+          isWarning && styles.containerWarning,
+          isOffline && styles.containerOffline,
+        ]}
+        accessibilityLabel={`Device ${device.name}, ${device.location}, status: ${device.status}${battery !== undefined ? `, battery ${battery}%` : ''}`}
+        accessibilityRole="button"
+      >
         <View style={styles.header}>
           <View style={styles.statusRow}>
             <Animated.View style={[styles.statusDot, { backgroundColor: statusColor, opacity: dotOpacity }]} />
             <Text style={styles.deviceName}>{device.name}</Text>
           </View>
-          <View style={[styles.statusBadge, { borderColor: statusColor + "40", backgroundColor: statusColor + "15" }]}>
-            <Text style={[styles.statusLabel, { color: statusColor }]}>{device.status.toUpperCase()}</Text>
+          <View style={styles.headerRight}>
+            {isOffline && (
+              <View style={styles.offlineBadge}>
+                <Text style={styles.offlineBadgeText}>OFFLINE</Text>
+              </View>
+            )}
+            {!isOffline && (
+              <View style={[styles.statusBadge, { borderColor: statusColor + "40", backgroundColor: statusColor + "15" }]}>
+                <Text style={[styles.statusLabel, { color: statusColor }]}>{device.status.toUpperCase()}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        <View style={styles.location}>
-          <Feather name="map-pin" size={11} color={Colors.textMuted} />
-          <Text style={styles.locationText}>{device.location}</Text>
+        <View style={styles.locationRow}>
+          <View style={styles.location}>
+            <Feather name="map-pin" size={11} color={Colors.textMuted} accessibilityElementsHidden />
+            <Text style={styles.locationText}>{device.location}</Text>
+          </View>
+          {battery !== undefined && <BatteryIcon level={battery} />}
         </View>
 
-        {sensorData ? (
+        {isOffline ? (
+          <View style={styles.readings}>
+            <Text style={styles.offlineText}>No signal — device offline</Text>
+          </View>
+        ) : sensorData ? (
           <View style={styles.readings}>
             <ReadingPill
-              icon={<MaterialCommunityIcons name="thermometer" size={12} color={tempColor} />}
+              icon={<MaterialCommunityIcons name="thermometer" size={12} color={tempColor} accessibilityElementsHidden />}
               value={`${sensorData.temperature.toFixed(1)}°C`}
               color={tempColor}
             />
             <ReadingPill
-              icon={<MaterialCommunityIcons name="smoke" size={12} color={smokeColor} />}
+              icon={<MaterialCommunityIcons name="smoke" size={12} color={smokeColor} accessibilityElementsHidden />}
               value={`${sensorData.smoke.toFixed(0)} ppm`}
               color={smokeColor}
             />
             <ReadingPill
-              icon={<MaterialCommunityIcons name="motion-sensor" size={12} color={sensorData.motion ? Colors.normal : Colors.textMuted} />}
+              icon={<MaterialCommunityIcons name="motion-sensor" size={12} color={sensorData.motion ? Colors.normal : Colors.textMuted} accessibilityElementsHidden />}
               value={sensorData.motion ? "Motion" : "Still"}
               color={sensorData.motion ? Colors.normal : Colors.textMuted}
             />
             {sensorData.button === 1 && (
               <ReadingPill
-                icon={<MaterialCommunityIcons name="alert" size={12} color={Colors.critical} />}
+                icon={<MaterialCommunityIcons name="alert" size={12} color={Colors.critical} accessibilityElementsHidden />}
                 value="PANIC"
                 color={Colors.critical}
               />
@@ -107,7 +151,7 @@ export function DeviceCard({ device, sensorData, anomaly, onPress }: DeviceCardP
           </View>
         )}
 
-        {anomaly && anomaly.severity !== "NORMAL" && (
+        {anomaly && anomaly.severity !== "NORMAL" && !isOffline && (
           <View style={[styles.anomalyRow, {
             backgroundColor: isCritical ? Colors.criticalBg : Colors.highBg,
           }]}>
@@ -115,6 +159,7 @@ export function DeviceCard({ device, sensorData, anomaly, onPress }: DeviceCardP
               name={isCritical ? "fire-alert" : "alert-circle-outline"}
               size={12}
               color={isCritical ? Colors.critical : Colors.high}
+              accessibilityElementsHidden
             />
             <Text style={[styles.anomalyMsg, { color: isCritical ? Colors.critical : Colors.high }]} numberOfLines={1}>
               {anomaly.message}
@@ -125,7 +170,7 @@ export function DeviceCard({ device, sensorData, anomaly, onPress }: DeviceCardP
           </View>
         )}
 
-        <Feather name="chevron-right" size={16} color={Colors.textMuted} style={styles.arrow} />
+        <Feather name="chevron-right" size={16} color={Colors.textMuted} style={styles.arrow} accessibilityElementsHidden />
       </Pressable>
     </Animated.View>
   );
@@ -141,9 +186,7 @@ function ReadingPill({ icon, value, color }: { icon: React.ReactNode; value: str
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    marginBottom: 10,
-  },
+  wrapper: { marginBottom: 10 },
   container: {
     backgroundColor: Colors.bgCard,
     borderRadius: 16,
@@ -151,103 +194,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  containerCritical: {
-    borderColor: Colors.criticalBorder,
-    backgroundColor: Colors.criticalBg,
-  },
-  containerWarning: {
-    borderColor: Colors.highBorder,
-    backgroundColor: Colors.highBg,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  deviceName: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  statusLabel: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 0.5,
-  },
-  location: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 10,
-  },
-  locationText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-  },
-  readings: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 4,
-  },
+  containerCritical: { borderColor: Colors.criticalBorder, backgroundColor: Colors.criticalBg },
+  containerWarning: { borderColor: Colors.highBorder, backgroundColor: Colors.highBg },
+  containerOffline: { borderColor: Colors.border, backgroundColor: Colors.bgCard, opacity: 0.7 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  deviceName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text, flex: 1 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  statusLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  offlineBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: "rgba(100,100,100,0.2)", borderWidth: 1, borderColor: "#555" },
+  offlineBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.textMuted, letterSpacing: 0.5 },
+  locationRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  location: { flexDirection: "row", alignItems: "center", gap: 4 },
+  locationText: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  batteryRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  batteryText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  batteryCritical: { fontSize: 9, color: Colors.critical, fontFamily: "Inter_700Bold" },
+  readings: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 4 },
   pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1,
   },
-  pillText: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-  },
-  noData: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-  },
+  pillText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  noData: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  offlineText: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular", fontStyle: "italic" },
   anomalyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 10,
-    padding: 8,
-    borderRadius: 8,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginTop: 10, padding: 8, borderRadius: 8,
   },
-  anomalyMsg: {
-    flex: 1,
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-  },
-  anomalyConf: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-  },
-  arrow: {
-    position: "absolute",
-    right: 14,
-    top: 16,
-  },
+  anomalyMsg: { flex: 1, fontSize: 11, fontFamily: "Inter_500Medium" },
+  anomalyConf: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  arrow: { position: "absolute", right: 14, top: 16 },
 });

@@ -6,6 +6,9 @@ export interface SensorData {
   smoke: number;
   motion: number;
   button: number;
+  battery?: number;
+  crowdDensity?: string;
+  audioAnomaly?: boolean;
 }
 
 export interface Device {
@@ -15,6 +18,7 @@ export interface Device {
   status: "online" | "offline" | "warning" | "critical";
   lastSeen: string;
   createdAt: string;
+  battery?: number;
   sensorData?: SensorData;
 }
 
@@ -44,41 +48,83 @@ export interface AnomalyResult {
   message: string;
 }
 
+const DEMO_BATTERIES: Record<string, number> = {
+  "device-001": 87,
+  "device-002": 73,
+  "device-003": 45,
+  "device-004": 92,
+  "device-005": 28,
+};
+
 const DEMO_DEVICES: Device[] = [
-  { id: "device-001", name: "Panic Button A", location: "Main Lobby", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: "device-002", name: "Panic Button B", location: "Floor 2 East Wing", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: "device-003", name: "Panic Button C", location: "Kitchen", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: "device-004", name: "Panic Button D", location: "Conference Hall", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: "device-001", name: "ESP32-001", location: "Main Lobby", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString(), battery: 87 },
+  { id: "device-002", name: "ESP32-002", location: "Floor 2 East Wing", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString(), battery: 73 },
+  { id: "device-003", name: "ESP32-003", location: "Kitchen", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString(), battery: 45 },
+  { id: "device-004", name: "ESP32-004", location: "Conference Hall", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString(), battery: 92 },
+  { id: "device-005", name: "ESP32-005", location: "Floor 3 West Wing", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString(), battery: 28 },
 ];
 
 function generateSensorData(deviceId: string, tick: number, scenario: string): SensorData {
   const base = Math.sin(tick * 0.1 + deviceId.charCodeAt(7)) * 2;
 
-  if (scenario === "fire" && deviceId === "device-002") {
+  if (scenario === "fire" && deviceId === "device-003") {
     const progress = Math.min((tick % 60) / 60, 1);
     return {
       temperature: 22 + progress * 45 + base,
       smoke: 150 + progress * 350 + base * 10,
       motion: progress > 0.3 ? 0 : 1,
       button: progress > 0.7 ? 1 : 0,
+      battery: DEMO_BATTERIES[deviceId],
+      crowdDensity: "high",
+      audioAnomaly: progress > 0.5,
     };
   }
 
-  if (scenario === "smoke" && deviceId === "device-004") {
+  if (scenario === "smoke" && deviceId === "device-003") {
     const progress = Math.min((tick % 45) / 45, 1);
     return {
       temperature: 22 + progress * 8 + base,
       smoke: 180 + progress * 280 + base * 8,
       motion: 1,
       button: 0,
+      battery: DEMO_BATTERIES[deviceId],
+      crowdDensity: "medium",
+      audioAnomaly: false,
+    };
+  }
+
+  if (deviceId === "device-003") {
+    return {
+      temperature: 38 + (Math.random() * 4),
+      smoke: 150 + (Math.random() * 50),
+      motion: 1,
+      button: 0,
+      battery: DEMO_BATTERIES[deviceId],
+      crowdDensity: "medium",
+      audioAnomaly: false,
+    };
+  }
+
+  if (deviceId === "device-004") {
+    return {
+      temperature: 21 + base,
+      smoke: 120 + base * 5,
+      motion: 1,
+      button: 0,
+      battery: DEMO_BATTERIES[deviceId],
+      crowdDensity: Math.random() > 0.3 ? "high" : "medium",
+      audioAnomaly: false,
     };
   }
 
   return {
-    temperature: 21 + base + (deviceId === "device-003" ? 1.5 : 0),
+    temperature: 21 + base + (deviceId === "device-002" ? 2 : 0),
     smoke: 130 + base * 5 + (deviceId === "device-001" ? 20 : 0),
     motion: Math.random() > 0.3 ? 1 : 0,
     button: 0,
+    battery: DEMO_BATTERIES[deviceId],
+    crowdDensity: "low",
+    audioAnomaly: false,
   };
 }
 
@@ -103,6 +149,8 @@ function runAnomalyDetection(data: SensorData, prev: SensorData | null): Anomaly
   if (anomalies.length > 2) { confidence += 5; }
   if (data.motion === 0 && confidence > 50) { anomalies.push("OCCUPANCY_EMPTY"); }
 
+  if (data.audioAnomaly) { confidence += 10; anomalies.push("AUDIO_ANOMALY"); }
+
   const clamped = Math.min(confidence, 100);
 
   if (confidence >= 80) return { severity: "CRITICAL", confidence: clamped, anomalies, action: "EVACUATE_IMMEDIATELY", message: "Fire detected! Evacuate immediately." };
@@ -124,22 +172,28 @@ interface DashboardContextValue {
   getDeviceAnomaly: (deviceId: string) => AnomalyResult | undefined;
   isLive: boolean;
   tick: number;
+  offlineDevices: string[];
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 const ALERT_STORAGE_KEY = "unifyos_alert_history";
+const AUTO_EMERGENCY_INTERVAL_MS = 5 * 60 * 1000;
+const AUTO_EMERGENCY_DURATION_MS = 30 * 1000;
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [devices, setDevices] = useState<Device[]>(DEMO_DEVICES);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [scenario, setScenarioState] = useState("normal");
   const [tick, setTick] = useState(0);
+  const [offlineDevices, setOfflineDevices] = useState<string[]>([]);
   const sensorDataRef = useRef<Map<string, SensorData>>(new Map());
   const anomalyRef = useRef<Map<string, AnomalyResult>>(new Map());
   const prevSensorRef = useRef<Map<string, SensorData>>(new Map());
   const alertIdRef = useRef(1);
   const [, forceUpdate] = useState(0);
+  const autoEmergencyRef = useRef<{ active: boolean; startTick: number }>({ active: false, startTick: -1 });
+  const lastAutoEmergencyTimeRef = useRef<number>(Date.now());
 
   const setScenario = useCallback((s: string) => {
     setScenarioState(s);
@@ -164,9 +218,27 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const now = Date.now();
+    if (now - lastAutoEmergencyTimeRef.current >= AUTO_EMERGENCY_INTERVAL_MS) {
+      autoEmergencyRef.current = { active: true, startTick: tick };
+      lastAutoEmergencyTimeRef.current = now;
+    }
+
+    const autoActive = autoEmergencyRef.current.active;
+    const autoElapsed = (tick - autoEmergencyRef.current.startTick) * 2000;
+    if (autoActive && autoElapsed >= AUTO_EMERGENCY_DURATION_MS) {
+      autoEmergencyRef.current = { active: false, startTick: -1 };
+    }
+
     DEMO_DEVICES.forEach(device => {
       const prev = prevSensorRef.current.get(device.id);
-      const data = generateSensorData(device.id, tick, scenario);
+
+      let effectiveScenario = scenario;
+      if (autoActive && device.id === "device-003") {
+        effectiveScenario = "fire";
+      }
+
+      const data = generateSensorData(device.id, tick, effectiveScenario);
       prevSensorRef.current.set(device.id, data);
       sensorDataRef.current.set(device.id, data);
 
@@ -200,6 +272,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       return {
         ...d,
         lastSeen: new Date().toISOString(),
+        battery: DEMO_BATTERIES[d.id],
         status: anomaly?.severity === "CRITICAL" ? "critical" :
                 anomaly?.severity === "HIGH" ? "warning" :
                 anomaly?.severity === "MEDIUM" ? "warning" : "online",
@@ -257,7 +330,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     getDeviceAnomaly,
     isLive: true,
     tick,
-  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, getDeviceSensorData, getDeviceAnomaly, tick]);
+    offlineDevices,
+  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, getDeviceSensorData, getDeviceAnomaly, tick, offlineDevices]);
 
   return (
     <DashboardContext.Provider value={value}>
