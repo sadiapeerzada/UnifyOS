@@ -116,9 +116,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [response, continueAsGuest]);
 
-  const login = useCallback(() => {
+  const login = useCallback(async () => {
     try {
-      promptAsync({ useProxy: true });
+      await promptAsync({ useProxy: true });
     } catch (err) {
       console.error('Login error:', err);
       continueAsGuest();

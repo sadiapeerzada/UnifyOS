@@ -5,24 +5,35 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertBanner } from "@/components/AlertBanner";
-import { LanguageSelector } from "@/components/LanguageSelector";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 
 type Filter = "all" | "active" | "critical" | "high" | "medium";
 
+const LANGUAGE_FLAGS = [
+  { code: "en", flag: "🇬🇧", label: "EN" },
+  { code: "hi", flag: "🇮🇳", label: "HI" },
+  { code: "ar", flag: "🇸🇦", label: "AR" },
+  { code: "fr", flag: "🇫🇷", label: "FR" },
+  { code: "es", flag: "🇪🇸", label: "ES" },
+  { code: "zh", flag: "🇨🇳", label: "ZH" },
+  { code: "ja", flag: "🇯🇵", label: "JA" },
+  { code: "de", flag: "🇩🇪", label: "DE" },
+  { code: "ru", flag: "🇷🇺", label: "RU" },
+];
+
 export default function AlertsScreen() {
   const insets = useSafeAreaInsets();
   const { alerts, dismissAlert } = useDashboard();
   const [filter, setFilter] = useState<Filter>("active");
-  const [language, setLanguage] = useState("en");
+  const [selectedLanguage, setSelectedLanguage] = useState("en");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   useEffect(() => {
-    AsyncStorage.getItem("unifyos_language").then(saved => {
-      if (saved) setLanguage(saved);
+    AsyncStorage.getItem("unifyos_language").then(lang => {
+      if (lang) setSelectedLanguage(lang);
     });
   }, []);
 
@@ -36,12 +47,18 @@ export default function AlertsScreen() {
 
   const activeCount = alerts.filter(a => !a.dismissed && a.severity !== "NORMAL").length;
   const criticalCount = alerts.filter(a => a.severity === "CRITICAL").length;
-  const hasCritical = filteredAlerts.some(a => a.severity === "CRITICAL");
+  const hasHighOrCritical = alerts.some(a => (a.severity === "CRITICAL" || a.severity === "HIGH") && !a.dismissed);
 
   const dismissAll = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     filteredAlerts.forEach(a => dismissAlert(a.id));
   };
+
+  function handleLanguageSelect(code: string) {
+    setSelectedLanguage(code);
+    AsyncStorage.setItem("unifyos_language", code);
+    Haptics.selectionAsync();
+  }
 
   const filters: { key: Filter; label: string; count?: number }[] = [
     { key: "active", label: "Active", count: activeCount },
@@ -92,10 +109,37 @@ export default function AlertsScreen() {
         ))}
       </ScrollView>
 
-      {hasCritical && (
-        <View style={styles.langBar}>
-          <Text style={styles.langLabel}>Alert language:</Text>
-          <LanguageSelector selectedLanguage={language} onLanguageChange={setLanguage} />
+      {hasHighOrCritical && (
+        <View style={styles.langSection}>
+          <Text style={styles.langLabel}>Emergency Language</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.langRow}
+          >
+            {LANGUAGE_FLAGS.map(lang => (
+              <Pressable
+                key={lang.code}
+                onPress={() => handleLanguageSelect(lang.code)}
+                style={[
+                  styles.langBtn,
+                  selectedLanguage === lang.code && styles.langBtnActive,
+                ]}
+              >
+                <Text style={styles.langFlag}>{lang.flag}</Text>
+                <Text style={[styles.langCode, selectedLanguage === lang.code && styles.langCodeActive]}>
+                  {lang.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {filteredAlerts.length > 0 && (filteredAlerts[0].severity === "CRITICAL" || filteredAlerts[0].severity === "HIGH") && filteredAlerts[0].translatedMessages && (
+            <View style={styles.translatedMsgBox}>
+              <Text style={styles.translatedMsg}>
+                {filteredAlerts[0].translatedMessages[selectedLanguage] || filteredAlerts[0].translatedMessages["en"]}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -111,20 +155,14 @@ export default function AlertsScreen() {
             <Text style={styles.emptyText}>All systems are operating normally</Text>
           </View>
         ) : (
-          filteredAlerts.map(alert => {
-            const translatedMsg =
-              alert.severity === "CRITICAL" && alert.translatedMessages
-                ? (alert.translatedMessages[language] ?? alert.translatedMessages["en"] ?? alert.message)
-                : undefined;
-            return (
-              <AlertBanner
-                key={alert.id}
-                alert={alert}
-                onDismiss={() => dismissAlert(alert.id)}
-                overrideMessage={translatedMsg}
-              />
-            );
-          })
+          filteredAlerts.map(alert => (
+            <AlertBanner
+              key={alert.id}
+              alert={alert}
+              selectedLanguage={selectedLanguage}
+              onDismiss={() => dismissAlert(alert.id)}
+            />
+          ))
         )}
       </ScrollView>
     </View>
@@ -224,21 +262,67 @@ const styles = StyleSheet.create({
   filterBadgeTextActive: {
     color: "#fff",
   },
-  langBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  langSection: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    gap: 6,
   },
   langLabel: {
-    fontSize: 11,
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
     color: Colors.textMuted,
-    fontFamily: "Inter_500Medium",
-    flexShrink: 0,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  langRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 2,
+  },
+  langBtn: {
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bgCard,
+    minWidth: 44,
+  },
+  langBtnActive: {
+    borderColor: Colors.critical,
+    backgroundColor: Colors.criticalBg,
+  },
+  langFlag: {
+    fontSize: 18,
+  },
+  langCode: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textMuted,
+    letterSpacing: 0.3,
+  },
+  langCodeActive: {
+    color: Colors.critical,
+  },
+  translatedMsgBox: {
+    backgroundColor: Colors.criticalBg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.criticalBorder,
+    padding: 12,
+    marginTop: 4,
+  },
+  translatedMsg: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    color: Colors.critical,
+    textAlign: "center",
+    lineHeight: 22,
   },
   scroll: { flex: 1 },
   scrollContent: {

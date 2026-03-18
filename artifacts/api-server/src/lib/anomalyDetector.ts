@@ -1,9 +1,5 @@
 const LOCATION_MAP: Record<string, string> = {
   'device-001': 'Main Lobby',
-  'device-002': 'Floor 2 East Wing',
-  'device-003': 'Kitchen',
-  'device-004': 'Conference Hall',
-  'device-005': 'Floor 3 West Wing',
 };
 
 const CALIBRATION_READINGS = 30;
@@ -15,6 +11,8 @@ interface SensorData {
   smoke: number;
   motion: number;
   button: number;
+  crowdDensity?: 'low' | 'medium' | 'high';
+  audioAnomaly?: boolean;
 }
 
 interface AnomalyResult {
@@ -92,7 +90,7 @@ export class AnomalyDetector {
   }
 
   checkAnomalies(deviceId: string, sensorData: SensorData): AnomalyResult {
-    const { temperature, smoke, motion, button } = sensorData;
+    const { temperature, smoke, motion, button, crowdDensity, audioAnomaly } = sensorData;
     const location = LOCATION_MAP[deviceId] ?? deviceId;
     this.totalReadings++;
 
@@ -238,6 +236,29 @@ export class AnomalyDetector {
     // --- Multi-sensor bonus ---
     if (triggeredSensors.length > 2) {
       confidence += 5;
+    }
+
+    // --- Crowd density + audio anomaly scoring ---
+    if (crowdDensity === 'high') {
+      confidence += 10;
+      anomalies.push('HIGH_CROWD_DENSITY');
+      explanationParts.push('High occupancy detected in this zone');
+    }
+    if (crowdDensity === 'high' && anomalies.includes('TEMP_CRITICAL')) {
+      confidence += 10;
+      anomalies.push('CROWD_EVACUATION_URGENT');
+      explanationParts.push('High occupancy with critical temperature — urgent evacuation needed');
+    }
+    if (audioAnomaly === true) {
+      confidence += 20;
+      anomalies.push('AUDIO_ANOMALY_DETECTED');
+      if (!triggeredSensors.includes('AUDIO')) triggeredSensors.push('AUDIO');
+      explanationParts.push('Unusual audio detected');
+    }
+    if (audioAnomaly === true && button === 1) {
+      confidence += 15;
+      anomalies.push('AUDIO_PANIC_CONFIRMED');
+      explanationParts.push('Audio anomaly confirmed by panic button press');
     }
 
     // --- Confidence cap and floor ---

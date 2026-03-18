@@ -6,7 +6,6 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
-import { useAccessibility } from "@/context/AccessibilityContext";
 import { ENV } from "@/config/env";
 
 interface AnomalyStats {
@@ -29,44 +28,36 @@ const SCENARIOS = [
   {
     id: "smoke",
     title: "Smoke Detection",
-    description: "Kitchen shows rising smoke levels. Temperature slightly elevated.",
+    description: "Server Room shows rising smoke levels. Temperature slightly elevated.",
     icon: "smoke" as const,
     color: Colors.smoke,
   },
   {
     id: "fire",
     title: "Fire Emergency",
-    description: "Kitchen — rapid temperature rise + smoke detected. Panic button activation.",
+    description: "Lab 205 — rapid temperature rise + smoke detected. Panic button activation.",
     icon: "fire-alert" as const,
     color: Colors.critical,
   },
 ];
 
-const SDG_DESCRIPTIONS = [
-  { label: "SDG 3", title: "Good Health & Well-Being", desc: "Faster response = fewer deaths" },
-  { label: "SDG 10", title: "Reduced Inequalities", desc: "Accessibility for disabled guests, multilingual" },
-  { label: "SDG 11", title: "Sustainable Cities", desc: "Smart venue infrastructure" },
-  { label: "SDG 17", title: "Partnerships for Goals", desc: "Integrates with 911, hotel systems" },
-];
-
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { scenario, setScenario, alerts, clearAlertHistory } = useDashboard();
-  const { accessibilityMode, setAccessibilityMode } = useAccessibility();
   const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [voiceAlerts, setVoiceAlertsState] = useState(true);
+  const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState(true);
 
   useEffect(() => {
     AsyncStorage.getItem("unifyos_voice_alerts").then(val => {
-      if (val === "false") setVoiceAlertsState(false);
+      if (val === "false") setVoiceAlertsEnabled(false);
     });
   }, []);
 
-  function handleVoiceToggle(val: boolean) {
-    setVoiceAlertsState(val);
-    AsyncStorage.setItem("unifyos_voice_alerts", val ? "true" : "false");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  function handleVoiceToggle(value: boolean) {
+    setVoiceAlertsEnabled(value);
+    AsyncStorage.setItem("unifyos_voice_alerts", value ? "true" : "false");
+    Haptics.selectionAsync();
   }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -135,11 +126,9 @@ export default function SettingsScreen() {
                   backgroundColor: s.color + "10",
                 },
               ]}
-              accessibilityLabel={`Select ${s.title} scenario`}
-              accessibilityRole="button"
             >
               <View style={[styles.scenarioIcon, { backgroundColor: s.color + "20" }]}>
-                <MaterialCommunityIcons name={s.icon} size={24} color={s.color} accessibilityElementsHidden />
+                <MaterialCommunityIcons name={s.icon} size={24} color={s.color} />
               </View>
               <View style={styles.scenarioText}>
                 <Text style={styles.scenarioTitle}>{s.title}</Text>
@@ -155,47 +144,6 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Accessibility</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.a11yRow}>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={styles.a11yLabel} accessibilityRole="text">
-                  Accessibility Mode
-                </Text>
-                <Text style={styles.a11yDesc}>High contrast + large text</Text>
-              </View>
-              <Switch
-                value={accessibilityMode}
-                onValueChange={val => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setAccessibilityMode(val);
-                }}
-                trackColor={{ false: Colors.border, true: Colors.accent }}
-                thumbColor="#fff"
-                accessibilityLabel="Toggle accessibility mode"
-                accessibilityHint="Enables high contrast colours and larger text sizes"
-              />
-            </View>
-            <View style={[styles.a11yRow, { borderTopWidth: 1, borderTopColor: Colors.borderSubtle }]}>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={styles.a11yLabel} accessibilityRole="text">
-                  Voice Alerts
-                </Text>
-                <Text style={styles.a11yDesc}>Speak aloud on CRITICAL alerts</Text>
-              </View>
-              <Switch
-                value={voiceAlerts}
-                onValueChange={handleVoiceToggle}
-                trackColor={{ false: Colors.border, true: Colors.accent }}
-                thumbColor="#fff"
-                accessibilityLabel="Toggle voice alerts"
-                accessibilityHint="Reads emergency alerts aloud when enabled"
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Session Statistics</Text>
 
           <View style={styles.statsGrid}>
@@ -205,12 +153,7 @@ export default function SettingsScreen() {
             <StatBox label="Medium" value={alertStats.medium} color={Colors.medium} />
           </View>
 
-          <Pressable
-            style={styles.clearBtn}
-            onPress={handleClearHistory}
-            accessibilityLabel="Clear alert history"
-            accessibilityRole="button"
-          >
+          <Pressable style={styles.clearBtn} onPress={handleClearHistory}>
             <Feather name="trash-2" size={14} color={Colors.critical} />
             <Text style={styles.clearBtnText}>Clear History</Text>
           </Pressable>
@@ -231,10 +174,16 @@ export default function SettingsScreen() {
                 <StatBox label="Devices Baselined" value={Object.keys(anomalyStats.baselineDevices).length} color={Colors.normal} />
               </View>
               <View style={styles.infoCard}>
-                <InfoRow label="False Alarm Rate" value={anomalyStats.falseAlarmRate} icon="activity" />
+                <InfoRow
+                  label="False Alarm Rate"
+                  value={anomalyStats.falseAlarmRate}
+                  icon="activity"
+                />
                 <InfoRow
                   label="Last Calibrated"
-                  value={anomalyStats.lastCalibrated ? new Date(anomalyStats.lastCalibrated).toLocaleTimeString() : "Not yet"}
+                  value={anomalyStats.lastCalibrated
+                    ? new Date(anomalyStats.lastCalibrated).toLocaleTimeString()
+                    : "Not yet"}
                   icon="clock"
                 />
               </View>
@@ -247,10 +196,32 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Alert Preferences</Text>
+          <View style={styles.infoCard}>
+            <View style={[styles.infoRow, { paddingVertical: 14 }]}>
+              <MaterialCommunityIcons name="volume-high" size={14} color={Colors.textMuted} />
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>Voice Alerts</Text>
+              <Text style={[styles.infoValue, { color: Colors.textMuted, fontSize: 11 }]}>
+                {voiceAlertsEnabled ? "On" : "Off"}
+              </Text>
+              <Switch
+                value={voiceAlertsEnabled}
+                onValueChange={handleVoiceToggle}
+                trackColor={{ false: Colors.border, true: Colors.accent + "80" }}
+                thumbColor={voiceAlertsEnabled ? Colors.accent : Colors.textMuted}
+              />
+            </View>
+          </View>
+          <Text style={[styles.sectionDesc, { marginTop: 2 }]}>
+            Speaks the emergency alert aloud when CRITICAL severity is detected.
+          </Text>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>System Info</Text>
           <View style={styles.infoCard}>
-            <InfoRow label="Platform" value="UnifyOS v3.0" icon="cpu" />
-            <InfoRow label="Devices Monitored" value="5 ESP32 Sensors" icon="radio" />
+            <InfoRow label="Platform" value="UnifyOS v1.0.0" icon="cpu" />
+            <InfoRow label="Devices Monitored" value="1 Smart Panic Button (Main Lobby)" icon="radio" />
             <InfoRow label="Update Interval" value="2 seconds" icon="refresh-cw" />
             <InfoRow label="Detection Algorithm" value="Statistical Threshold + Rate of Change" icon="activity" />
             <InfoRow label="Max Confidence" value="100%" icon="percent" />
@@ -272,34 +243,26 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Emergency Numbers</Text>
           <View style={styles.infoCard}>
             <CallRow label="Emergency (112)" number="112" color={Colors.critical} />
-            <CallRow label="Fire (101)" number="101" color={Colors.high} />
-            <CallRow label="Ambulance (102)" number="102" color={Colors.medium} />
-            <CallRow label="Police (100)" number="100" color={Colors.accent} />
+            <CallRow label="Police (101)" number="101" color={Colors.high} />
+            <CallRow label="Fire & Rescue (102)" number="102" color={Colors.medium} />
           </View>
         </View>
 
         <View style={[styles.section, styles.aboutCard]}>
           <View style={styles.aboutHeader}>
-            <MaterialCommunityIcons name="shield-check" size={36} color={Colors.accent} accessibilityElementsHidden />
+            <MaterialCommunityIcons name="shield-check" size={36} color={Colors.accent} />
             <View>
-              <Text style={styles.aboutTitle}>UnifyOS v3.0</Text>
-              <Text style={styles.aboutSubtitle}>Real-Time Crisis Coordination Platform</Text>
+              <Text style={styles.aboutTitle}>UnifyOS {ENV.APP_VERSION}</Text>
+              <Text style={styles.aboutSubtitle}>Real-time Crisis Coordination Platform</Text>
             </View>
           </View>
-          <Text style={styles.aboutDesc}>Google Solution Challenge 2026</Text>
-          <Text style={styles.aboutDesc}>Build date: March 2026</Text>
-          <View style={styles.sdgList}>
-            {SDG_DESCRIPTIONS.map(s => (
-              <View key={s.label} style={styles.sdgItem}>
-                <View style={styles.sdgChip}><Text style={styles.sdgText}>{s.label}</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sdgTitle}>{s.title}</Text>
-                  <Text style={styles.sdgDesc}>{s.desc}</Text>
-                </View>
-              </View>
+          <Text style={styles.aboutDesc}>Built for Google Solution Challenge 2026</Text>
+          <View style={styles.sdgRow}>
+            {["SDG 3", "SDG 9", "SDG 11"].map(s => (
+              <View key={s} style={styles.sdgChip}><Text style={styles.sdgText}>{s}</Text></View>
             ))}
           </View>
-          <Text style={styles.teamText}>Team BlackBit</Text>
+          <Text style={styles.teamText}>Team BlackBit · Asna Mirza · Sadia Peerzada</Text>
         </View>
       </ScrollView>
     </View>
@@ -318,7 +281,7 @@ function StatBox({ label, value, color }: { label: string; value: number; color:
 function InfoRow({ label, value, icon }: { label: string; value: string; icon: string }) {
   return (
     <View style={styles.infoRow}>
-      <Feather name={icon as any} size={14} color={Colors.textMuted} accessibilityElementsHidden />
+      <Feather name={icon as any} size={14} color={Colors.textMuted} />
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
     </View>
@@ -340,14 +303,8 @@ function ThresholdRow({ sensor, warn, alert, color }: { sensor: string; warn: st
 
 function CallRow({ label, number, color }: { label: string; number: string; color: string }) {
   return (
-    <Pressable
-      style={styles.infoRow}
-      onPress={() => Linking.openURL(`tel:${number}`)}
-      accessibilityLabel={`Call ${label}`}
-      accessibilityHint={`Tap to call ${number}`}
-      accessibilityRole="button"
-    >
-      <MaterialCommunityIcons name="phone" size={14} color={color} accessibilityElementsHidden />
+    <Pressable style={styles.infoRow} onPress={() => Linking.openURL(`tel:${number}`)}>
+      <MaterialCommunityIcons name="phone" size={14} color={color} />
       <Text style={[styles.infoLabel, { color: Colors.text }]}>{label}</Text>
       <View style={[styles.callChip, { backgroundColor: color + "20", borderColor: color + "50" }]}>
         <Text style={[styles.callText, { color }]}>Call</Text>
@@ -385,12 +342,6 @@ const styles = StyleSheet.create({
   scenarioDesc: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular", lineHeight: 16 },
   activeChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   activeText: { fontSize: 9, color: "#fff", fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
-  a11yRow: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    paddingHorizontal: 14, paddingVertical: 14,
-  },
-  a11yLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  a11yDesc: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   statsGrid: { flexDirection: "row", gap: 10 },
   statBox: {
     flex: 1, backgroundColor: Colors.bgCard, borderRadius: 14, padding: 14,
@@ -429,15 +380,11 @@ const styles = StyleSheet.create({
   aboutTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
   aboutSubtitle: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   aboutDesc: { fontSize: 13, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
-  sdgList: { gap: 8 },
-  sdgItem: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  sdgRow: { flexDirection: "row", gap: 8 },
   sdgChip: {
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
     backgroundColor: Colors.accentGlow, borderWidth: 1, borderColor: Colors.accent + "40",
-    minWidth: 56, alignItems: "center",
   },
-  sdgText: { fontSize: 10, fontFamily: "Inter_700Bold", color: Colors.accentLight },
-  sdgTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  sdgDesc: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  sdgText: { fontSize: 11, fontFamily: "Inter_700Bold", color: Colors.accentLight },
   teamText: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
 });

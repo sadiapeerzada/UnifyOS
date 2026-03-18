@@ -23,7 +23,7 @@ export default function DevicesScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Devices</Text>
-          <Text style={styles.subtitle}>{devices.length} panic buttons registered</Text>
+          <Text style={styles.subtitle}>{devices.length} device registered · Single device deployment</Text>
         </View>
         <LiveIndicator />
       </View>

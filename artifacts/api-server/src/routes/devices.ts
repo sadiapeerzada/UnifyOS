@@ -3,18 +3,8 @@ import { db } from "@workspace/db";
 import { devicesTable, sensorReadingsTable, alertsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { anomalyDetector } from "../lib/anomalyDetector.js";
-import { getDeviceStatuses } from "../lib/wsServer.js";
 
 const router: IRouter = Router();
-
-router.get("/devices/status", async (_req, res) => {
-  try {
-    const statuses = getDeviceStatuses();
-    res.json(statuses);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch device statuses" });
-  }
-});
 
 router.get("/devices", async (_req, res) => {
   try {

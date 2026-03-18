@@ -12,61 +12,14 @@ const router: IRouter = Router();
 
 const openCors = cors({ origin: '*' });
 
-function normalisePayload(body: Record<string, any>): {
-  temperature: number;
-  smoke: number;
-  motion: number;
-  button: number;
-  deviceId: string;
-  battery: number;
-  roomId: string;
-  crowdDensity: string;
-  audioAnomaly: boolean;
-  timestamp: string;
-} {
-  const isNewFormat = 'device_id' in body || 'temp' in body || 'alert_type' in body;
-
-  if (isNewFormat) {
-    const alertType = body.alert_type;
-    let button = 0;
-    if (alertType === 'panic_button') button = 1;
-    else if (typeof alertType === 'number') button = alertType;
-
-    return {
-      temperature: body.temp ?? body.temperature ?? 0,
-      smoke: body.smoke ?? 0,
-      motion: body.motion ?? 0,
-      button,
-      deviceId: body.device_id ?? body.deviceId ?? 'device-001',
-      battery: body.battery ?? 100,
-      roomId: body.room_id ?? '',
-      crowdDensity: body.crowd_density ?? 'low',
-      audioAnomaly: body.audio_anomaly ?? false,
-      timestamp: body.timestamp ?? new Date().toISOString(),
-    };
-  }
-
-  const btn = body.button ?? 0;
-  return {
-    temperature: body.temperature ?? 0,
-    smoke: body.smoke ?? 0,
-    motion: body.motion ?? 0,
-    button: btn,
-    deviceId: body.deviceId ?? 'device-001',
-    battery: body.battery ?? 100,
-    roomId: '',
-    crowdDensity: 'low',
-    audioAnomaly: false,
-    timestamp: new Date().toISOString(),
-  };
-}
-
 router.post('/sensor-data', openCors, async (req, res) => {
   try {
-    const norm = normalisePayload(req.body);
-    const { temperature, smoke, motion, button, deviceId, battery, roomId, crowdDensity, audioAnomaly } = norm;
+    const { temperature, smoke, motion, button, deviceId: rawDeviceId, crowd_density, audio_anomaly } = req.body;
+    const deviceId = rawDeviceId ?? 'device-001';
+    const crowdDensity: 'low' | 'medium' | 'high' | undefined = crowd_density;
+    const audioAnomaly: boolean | undefined = audio_anomaly;
 
-    recordHardwarePing(deviceId, { battery, roomId, temp: temperature, smoke });
+    recordHardwarePing(deviceId);
 
     try {
       await db.update(devicesTable)
@@ -83,18 +36,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
       });
     } catch {}
 
-    const anomaly = anomalyDetector.checkAnomalies(deviceId, { temperature, smoke, motion, button });
-
-    let translatedMessages: Record<string, string> | undefined;
-
-    if (anomaly.severity === 'CRITICAL' || anomaly.severity === 'HIGH') {
-      const sensors = anomaly.triggeredSensors ?? [];
-      let alertType: 'evacuate' | 'fire' | 'smoke' | 'panic' | 'all_clear' = 'evacuate';
-      if (sensors.includes('SMOKE_DETECTED')) alertType = 'smoke';
-      else if (sensors.includes('TEMP_CRITICAL')) alertType = 'fire';
-      else if (sensors.includes('PANIC_BUTTON')) alertType = 'panic';
-      translatedMessages = getAllTranslations(alertType);
-    }
+    const anomaly = anomalyDetector.checkAnomalies(deviceId, { temperature, smoke, motion, button, crowdDensity, audioAnomaly });
 
     let aiSummary: string | undefined;
     let aiAction: string | undefined;
@@ -146,23 +88,22 @@ router.post('/sensor-data', openCors, async (req, res) => {
       } catch {}
     }
 
+    const isHighOrCritical = anomaly.severity === 'HIGH' || anomaly.severity === 'CRITICAL';
+    const translatedMessages = isHighOrCritical ? getAllTranslations('evacuate') : undefined;
+
     broadcastSensorUpdate({
       deviceId,
       temperature,
       smoke,
       motion,
       button,
-      battery,
-      roomId,
-      crowdDensity,
-      audioAnomaly,
       severity: anomaly.severity,
       confidence: anomaly.confidence,
       message: anomaly.message,
-      translatedMessages,
       aiSummary,
       aiAction,
       aiEstimatedCause,
+      ...(translatedMessages ? { translatedMessages } : {}),
     });
 
     res.json({
@@ -173,10 +114,11 @@ router.post('/sensor-data', openCors, async (req, res) => {
       suggestedAction: anomaly.suggestedAction,
       location: anomaly.location,
       triggeredSensors: anomaly.triggeredSensors,
-      translatedMessages,
+      explanation: anomaly.explanation,
       aiSummary,
       aiAction,
       aiEstimatedCause,
+      ...(translatedMessages ? { translatedMessages } : {}),
     });
   } catch (err) {
     console.error(err);

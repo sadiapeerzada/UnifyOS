@@ -4,9 +4,8 @@
 
 [![Google Solution Challenge 2026](https://img.shields.io/badge/Google%20Solution%20Challenge-2026-4285F4?style=flat&logo=google)](https://developers.google.com/community/gdsc-solution-challenge)
 [![SDG 3](https://img.shields.io/badge/SDG-3%20Good%20Health-4CAF50?style=flat)](https://sdgs.un.org/goals/goal3)
-[![SDG 10](https://img.shields.io/badge/SDG-10%20Reduced%20Inequalities-E91E63?style=flat)](https://sdgs.un.org/goals/goal10)
+[![SDG 9](https://img.shields.io/badge/SDG-9%20Infrastructure-FF9800?style=flat)](https://sdgs.un.org/goals/goal9)
 [![SDG 11](https://img.shields.io/badge/SDG-11%20Safe%20Cities-2196F3?style=flat)](https://sdgs.un.org/goals/goal11)
-[![SDG 17](https://img.shields.io/badge/SDG-17%20Partnerships-607D8B?style=flat)](https://sdgs.un.org/goals/goal17)
 
 ---
 
@@ -248,10 +247,9 @@ UnifyOS/
 
 | Goal | Impact |
 |------|--------|
-| **SDG 3** — Good Health & Well-being | Faster response = fewer deaths |
-| **SDG 10** — Reduced Inequalities | Accessibility for disabled guests, multilingual support |
-| **SDG 11** — Sustainable Cities & Communities | Smart venue infrastructure |
-| **SDG 17** — Partnerships for the Goals | Integrates with 911, hotel systems |
+| **SDG 3** — Good Health & Well-being | Faster emergency response saves lives |
+| **SDG 9** — Industry, Innovation & Infrastructure | IoT infrastructure for building safety |
+| **SDG 11** — Sustainable Cities & Communities | Safer, smarter built environments |
 
 ---
 
@@ -259,10 +257,8 @@ UnifyOS/
 
 | Name | Role |
 |------|------|
-| Alisha Hasan | Co-founder & Developer |
 | Asna Mirza | Co-founder & Developer |
 | Sadia Peerzada | Co-founder & Developer |
-| Sadia Zafreen | Co-founder & Developer |
 
 ---
 

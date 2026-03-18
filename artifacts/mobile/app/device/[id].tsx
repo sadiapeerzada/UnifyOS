@@ -1,9 +1,7 @@
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
-  ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -12,15 +10,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import { SensorGauge } from "@/components/SensorGauge";
 import { ConfidenceMeter } from "@/components/ConfidenceMeter";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { AlertBanner } from "@/components/AlertBanner";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
-import { ENV } from "@/config/env";
 
 const ANOMALY_LABELS: Record<string, { label: string; color: string; icon: string }> = {
   TEMP_CRITICAL: { label: "Temperature Critical (>45°C)", color: Colors.critical, icon: "thermometer-alert" },
@@ -37,7 +32,6 @@ export default function DeviceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { devices, alerts, getDeviceSensorData, getDeviceAnomaly, dismissAlert } = useDashboard();
-  const [downloading, setDownloading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -66,69 +60,6 @@ export default function DeviceDetailScreen() {
   const actionColor = anomaly?.severity === "CRITICAL" ? Colors.critical :
                       anomaly?.severity === "HIGH" ? Colors.high :
                       anomaly?.severity === "MEDIUM" ? Colors.medium : Colors.normal;
-
-  const hasCriticalAlert = deviceAlerts.some(a => a.severity === "CRITICAL");
-
-  async function handleDownloadReport() {
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      const incidentId = `INC-${id}-${Date.now()}`;
-      const criticalAlert = deviceAlerts.find(a => a.severity === "CRITICAL");
-      const sData = sensorData;
-
-      const res = await fetch(`${ENV.BACKEND_URL}/incident/resolve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          incidentId,
-          resolvedBy: "Staff (App)",
-          notes: `Incident resolved at ${device?.location ?? id}. Auto-generated from device view.`,
-          location: device?.location ?? id,
-          severity: anomaly?.severity ?? "CRITICAL",
-          confidence: anomaly?.confidence ?? 0,
-          triggeredSensors: anomaly?.anomalies ?? [],
-          peakTemperature: sData?.temperature ?? 0,
-          peakSmoke: sData?.smoke ?? 0,
-          aiSummary: criticalAlert?.aiSummary ?? "",
-          stepsCompleted: 6,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Server error");
-
-      const { reportBase64 } = await res.json() as { reportBase64: string };
-
-      if (Platform.OS === "web") {
-        const blob = new Blob(
-          [Uint8Array.from(atob(reportBase64), c => c.charCodeAt(0))],
-          { type: "application/pdf" }
-        );
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `incident-report-${incidentId}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const path = FileSystem.documentDirectory + `incident-report-${incidentId}.pdf`;
-        await FileSystem.writeAsStringAsync(path, reportBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(path, { mimeType: "application/pdf" });
-        } else {
-          Alert.alert("Saved", `Report saved to: ${path}`);
-        }
-      }
-    } catch (err) {
-      Alert.alert("Error", "Failed to generate report. Please try again.");
-      console.error("Report generation error:", err);
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -269,25 +200,6 @@ export default function DeviceDetailScreen() {
             <InfoRow label="Last Seen" value={new Date(device.lastSeen).toLocaleTimeString()} />
           </View>
         </View>
-
-        {hasCriticalAlert && (
-          <Pressable
-            style={[styles.reportBtn, downloading && { opacity: 0.6 }]}
-            onPress={handleDownloadReport}
-            disabled={downloading}
-            accessibilityLabel="Download Incident Report"
-            accessibilityRole="button"
-          >
-            {downloading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Feather name="download" size={16} color="#fff" />
-            )}
-            <Text style={styles.reportBtnText}>
-              {downloading ? "Generating PDF…" : "Download Incident Report"}
-            </Text>
-          </Pressable>
-        )}
       </ScrollView>
     </View>
   );
