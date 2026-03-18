@@ -58,6 +58,9 @@
   "dependencies": {
     "expo-auth-session": "^7.0.10",
     "expo-crypto": "~15.0.8",
+    "expo-file-system": "~19.0.21",
+    "expo-sharing": "~14.0.8",
+    "expo-speech": "~14.0.8",
     "firebase": "^12.10.0"
   }
 }

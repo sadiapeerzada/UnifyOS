@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import * as Speech from "expo-speech";
 
 export interface SensorData {
   temperature: number;
@@ -38,6 +39,7 @@ export interface Alert {
   aiAction?: string;
   aiEstimatedCause?: string;
   triggeredSensors?: string[];
+  translatedMessages?: Record<string, string>;
 }
 
 export interface AnomalyResult {
@@ -259,6 +261,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           dismissed: false,
           createdAt: new Date().toISOString(),
         };
+
+        if (anomaly.severity === "CRITICAL") {
+          AsyncStorage.getItem("unifyos_voice_alerts").then(val => {
+            if (val !== "false") {
+              try {
+                Speech.speak(
+                  `Emergency alert. ${device.location}. ${anomaly.message}`,
+                  { language: "en-US", pitch: 1.0, rate: 0.85 }
+                );
+              } catch {}
+            }
+          });
+        }
+
         setAlerts(prev => {
           const updated = [newAlert, ...prev].slice(0, 50);
           AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(updated));

@@ -10,6 +10,7 @@ interface AlertBannerProps {
   onDismiss: () => void;
   onPress?: () => void;
   compact?: boolean;
+  overrideMessage?: string;
 }
 
 const SEVERITY_CONFIG = {
@@ -50,7 +51,7 @@ const SENSOR_COLORS: Record<string, string> = {
   MOTION: Colors.accent,
 };
 
-export function AlertBanner({ alert, onDismiss, onPress, compact }: AlertBannerProps) {
+export function AlertBanner({ alert, onDismiss, onPress, compact, overrideMessage }: AlertBannerProps) {
   const cfg = SEVERITY_CONFIG[alert.severity];
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(-20)).current;
@@ -101,7 +102,7 @@ export function AlertBanner({ alert, onDismiss, onPress, compact }: AlertBannerP
             <Text style={styles.time}>{timeAgo(alert.createdAt)}</Text>
           </View>
           <Text style={[styles.message, compact && styles.messageCompact]} numberOfLines={compact ? 1 : 2}>
-            {alert.message}
+            {overrideMessage ?? alert.message}
           </Text>
           {!compact && (
             <>

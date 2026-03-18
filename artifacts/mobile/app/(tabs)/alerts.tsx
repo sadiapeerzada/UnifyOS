@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertBanner } from "@/components/AlertBanner";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 
@@ -13,9 +15,16 @@ export default function AlertsScreen() {
   const insets = useSafeAreaInsets();
   const { alerts, dismissAlert } = useDashboard();
   const [filter, setFilter] = useState<Filter>("active");
+  const [language, setLanguage] = useState("en");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  useEffect(() => {
+    AsyncStorage.getItem("unifyos_language").then(saved => {
+      if (saved) setLanguage(saved);
+    });
+  }, []);
 
   const filteredAlerts = alerts.filter(a => {
     if (filter === "active") return !a.dismissed && a.severity !== "NORMAL";
@@ -27,6 +36,7 @@ export default function AlertsScreen() {
 
   const activeCount = alerts.filter(a => !a.dismissed && a.severity !== "NORMAL").length;
   const criticalCount = alerts.filter(a => a.severity === "CRITICAL").length;
+  const hasCritical = filteredAlerts.some(a => a.severity === "CRITICAL");
 
   const dismissAll = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -82,6 +92,13 @@ export default function AlertsScreen() {
         ))}
       </ScrollView>
 
+      {hasCritical && (
+        <View style={styles.langBar}>
+          <Text style={styles.langLabel}>Alert language:</Text>
+          <LanguageSelector selectedLanguage={language} onLanguageChange={setLanguage} />
+        </View>
+      )}
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 100 }]}
@@ -94,13 +111,20 @@ export default function AlertsScreen() {
             <Text style={styles.emptyText}>All systems are operating normally</Text>
           </View>
         ) : (
-          filteredAlerts.map(alert => (
-            <AlertBanner
-              key={alert.id}
-              alert={alert}
-              onDismiss={() => dismissAlert(alert.id)}
-            />
-          ))
+          filteredAlerts.map(alert => {
+            const translatedMsg =
+              alert.severity === "CRITICAL" && alert.translatedMessages
+                ? (alert.translatedMessages[language] ?? alert.translatedMessages["en"] ?? alert.message)
+                : undefined;
+            return (
+              <AlertBanner
+                key={alert.id}
+                alert={alert}
+                onDismiss={() => dismissAlert(alert.id)}
+                overrideMessage={translatedMsg}
+              />
+            );
+          })
         )}
       </ScrollView>
     </View>
@@ -199,6 +223,22 @@ const styles = StyleSheet.create({
   },
   filterBadgeTextActive: {
     color: "#fff",
+  },
+  langBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.bgCard,
+  },
+  langLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontFamily: "Inter_500Medium",
+    flexShrink: 0,
   },
   scroll: { flex: 1 },
   scrollContent: {

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@types/pdfkit": "^0.17.5",
     "@types/ws": "^8.18.1",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
@@ -18,6 +19,7 @@
     "dotenv": "^17.3.1",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "pdfkit": "^0.18.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {

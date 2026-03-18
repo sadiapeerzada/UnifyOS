@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { useAccessibility } from "@/context/AccessibilityContext";
@@ -54,6 +55,19 @@ export default function SettingsScreen() {
   const { accessibilityMode, setAccessibilityMode } = useAccessibility();
   const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [voiceAlerts, setVoiceAlertsState] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem("unifyos_voice_alerts").then(val => {
+      if (val === "false") setVoiceAlertsState(false);
+    });
+  }, []);
+
+  function handleVoiceToggle(val: boolean) {
+    setVoiceAlertsState(val);
+    AsyncStorage.setItem("unifyos_voice_alerts", val ? "true" : "false");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -160,6 +174,22 @@ export default function SettingsScreen() {
                 thumbColor="#fff"
                 accessibilityLabel="Toggle accessibility mode"
                 accessibilityHint="Enables high contrast colours and larger text sizes"
+              />
+            </View>
+            <View style={[styles.a11yRow, { borderTopWidth: 1, borderTopColor: Colors.borderSubtle }]}>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={styles.a11yLabel} accessibilityRole="text">
+                  Voice Alerts
+                </Text>
+                <Text style={styles.a11yDesc}>Speak aloud on CRITICAL alerts</Text>
+              </View>
+              <Switch
+                value={voiceAlerts}
+                onValueChange={handleVoiceToggle}
+                trackColor={{ false: Colors.border, true: Colors.accent }}
+                thumbColor="#fff"
+                accessibilityLabel="Toggle voice alerts"
+                accessibilityHint="Reads emergency alerts aloud when enabled"
               />
             </View>
           </View>

@@ -6,7 +6,7 @@
     "description": "Real-time crisis coordination for hospitality venues",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "unifyos",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {

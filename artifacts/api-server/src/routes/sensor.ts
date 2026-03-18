@@ -3,6 +3,7 @@ import cors from 'cors';
 import { anomalyDetector } from '../lib/anomalyDetector.js';
 import { broadcastSensorUpdate, recordHardwarePing, getStatus } from '../lib/wsServer.js';
 import { generateIncidentSummary } from '../services/gemini.js';
+import { getAllTranslations } from '../services/translator.js';
 import { db } from '@workspace/db';
 import { devicesTable, sensorReadingsTable, alertsTable } from '@workspace/db';
 import { eq } from 'drizzle-orm';
@@ -84,6 +85,17 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
     const anomaly = anomalyDetector.checkAnomalies(deviceId, { temperature, smoke, motion, button });
 
+    let translatedMessages: Record<string, string> | undefined;
+
+    if (anomaly.severity === 'CRITICAL' || anomaly.severity === 'HIGH') {
+      const sensors = anomaly.triggeredSensors ?? [];
+      let alertType: 'evacuate' | 'fire' | 'smoke' | 'panic' | 'all_clear' = 'evacuate';
+      if (sensors.includes('SMOKE_DETECTED')) alertType = 'smoke';
+      else if (sensors.includes('TEMP_CRITICAL')) alertType = 'fire';
+      else if (sensors.includes('PANIC_BUTTON')) alertType = 'panic';
+      translatedMessages = getAllTranslations(alertType);
+    }
+
     let aiSummary: string | undefined;
     let aiAction: string | undefined;
     let aiEstimatedCause: string | undefined;
@@ -147,6 +159,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
       severity: anomaly.severity,
       confidence: anomaly.confidence,
       message: anomaly.message,
+      translatedMessages,
       aiSummary,
       aiAction,
       aiEstimatedCause,
@@ -160,6 +173,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
       suggestedAction: anomaly.suggestedAction,
       location: anomaly.location,
       triggeredSensors: anomaly.triggeredSensors,
+      translatedMessages,
       aiSummary,
       aiAction,
       aiEstimatedCause,
