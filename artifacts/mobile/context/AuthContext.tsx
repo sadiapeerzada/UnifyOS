@@ -48,10 +48,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const [, response, promptAsync] = Google.useAuthRequest({
-    webClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
-    iosClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
-    androidClientId: '537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com',
-    redirectUri: AuthSession.makeRedirectUri({ useProxy: true }),
+    webClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
+    iosClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
+    androidClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
+    redirectUri: AuthSession.makeRedirectUri({ useProxy: true, projectNameForProxy: "@sadiapeerzada/unifyos" }),
   });
 
   const continueAsGuest = useCallback(() => {
