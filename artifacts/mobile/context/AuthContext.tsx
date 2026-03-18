@@ -52,6 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     iosClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
     androidClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
     redirectUri: "https://auth.expo.io/@sadiapeerzada/unifyos",
+    responseType: "id_token",
+    usePKCE: false,
   });
 
   const continueAsGuest = useCallback(() => {
