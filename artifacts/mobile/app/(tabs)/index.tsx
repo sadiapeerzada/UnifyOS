@@ -103,7 +103,7 @@ export default function HomeScreen() {
           </Text>
 
           <Pressable
-            onPress={() => router.push("/(tabs)/dashboard")}
+            onPress={() => router.replace("/(tabs)/dashboard")}
             style={styles.primaryBtn}
           >
             <MaterialCommunityIcons name="gauge" size={16} color="#fff" />

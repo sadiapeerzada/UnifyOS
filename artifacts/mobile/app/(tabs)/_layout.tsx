@@ -81,6 +81,7 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "About",
+          tabBarStyle: { display: "none" },
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
               <SymbolView name="info.circle" tintColor={color} size={size} />

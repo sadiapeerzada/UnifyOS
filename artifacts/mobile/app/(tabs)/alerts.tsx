@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType } from "docx";
 import { AlertBanner } from "@/components/AlertBanner";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
@@ -34,7 +34,7 @@ const LANGUAGE_FLAGS = [
 
 export default function AlertsScreen() {
   const insets = useSafeAreaInsets();
-  const { alerts, dismissAlert, deviceName, deviceLocation } = useDashboard();
+  const { alerts, dismissAlert, clearAlertHistory, deviceName, deviceLocation } = useDashboard();
   const [filter, setFilter] = useState<Filter>("active");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -61,10 +61,25 @@ export default function AlertsScreen() {
 
   const topCritical = filteredAlerts.find(a => a.severity === "CRITICAL" && !a.dismissed);
 
-  const dismissAll = () => {
+  function handleClearAll() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    filteredAlerts.forEach(a => dismissAlert(a.id));
-  };
+    Alert.alert(
+      "Clear All Alerts",
+      "This will permanently delete all alert history. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            clearAlertHistory();
+            Alert.alert("Cleared", "All alerts have been cleared.");
+          },
+        },
+      ]
+    );
+  }
 
   function handleLanguageSelect(code: string) {
     setSelectedLanguage(code);
@@ -109,31 +124,155 @@ export default function AlertsScreen() {
     setGeneratingReport(true);
     try {
       console.log("📄 Requesting incident report generation from backend...");
-      const res = await fetch(`${ENV.BACKEND_URL}/generate-incident-report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venue: deviceLocation || deviceName || "Unknown Venue", alerts: alerts.slice(0, 30) }),
-        signal: AbortSignal.timeout(30000),
-      });
-      const data = await res.json();
-      console.log("📄 Report content received, generating .docx...");
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      let reportContent = "";
+      try {
+        const res = await fetch(`${ENV.BACKEND_URL}/generate-incident-report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ venue: deviceLocation || deviceName || "Unknown Venue", alerts: alerts.slice(0, 30) }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+        reportContent = data.content || "";
+        console.log("📄 Report content received from backend");
+      } catch {
+        clearTimeout(timeoutId);
+        console.log("📄 Backend unavailable, generating local report...");
+        const criticals = alerts.filter(a => a.severity === "CRITICAL");
+        const highs = alerts.filter(a => a.severity === "HIGH");
+        const mediums = alerts.filter(a => a.severity === "MEDIUM");
+        reportContent = [
+          "EXECUTIVE SUMMARY",
+          `This incident report covers ${alerts.length} events recorded by the UnifyOS sensor network at ${deviceLocation || deviceName}.`,
+          "",
+          "EVENT STATISTICS",
+          `Total Events: ${alerts.length}`,
+          `Critical Events: ${criticals.length}`,
+          `High Severity Events: ${highs.length}`,
+          `Medium Severity Events: ${mediums.length}`,
+          "",
+          "INCIDENT TIMELINE",
+          ...alerts.slice(0, 20).map(a =>
+            `[${new Date(a.createdAt).toLocaleString()}] ${a.severity} (${a.confidence}%) — ${a.message}`
+          ),
+          "",
+          "SENSOR DATA ANALYSIS",
+          "Temperature monitoring: DHT22 sensors tracked ambient temperature every 2 seconds.",
+          "Smoke detection: MQ-2 gas sensors monitored particulate density in PPM.",
+          "Motion tracking: PIR occupancy sensors detected evacuation patterns.",
+          "Panic buttons: Physical triggers provided manual confirmation data.",
+          "",
+          "RECOMMENDED ACTIONS",
+          "1. Review sensor calibration schedules.",
+          "2. Conduct staff emergency response drills.",
+          "3. Update emergency contact lists.",
+          "4. Verify evacuation route signage.",
+          "5. Review threshold settings with facility management.",
+        ].join("\n");
+      }
 
       const reportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+      const reportId = `RPT-${Date.now().toString(36).toUpperCase()}`;
 
-      const docChildren: Paragraph[] = [
+      const docChildren: Paragraph[] = [];
+
+      docChildren.push(
         new Paragraph({
-          children: [new TextRun({ text: `Incident Report — ${deviceLocation || deviceName || "Venue"} — ${reportDate}`, bold: true, size: 36, color: "1E3A5F" })],
+          children: [new TextRun({ text: "UnifyOS", bold: true, size: 52, color: "1E3A5F" })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: "Crisis Coordination Platform", size: 22, color: "4F8EF7" })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: "INCIDENT REPORT", bold: true, size: 36, color: "1E3A5F" })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: `${deviceLocation || deviceName || "Venue"} · ${reportDate}`, size: 24, color: "555555" })],
           alignment: AlignmentType.CENTER,
           spacing: { after: 400 },
         }),
         new Paragraph({
-          children: [new TextRun({ text: `Generated by UnifyOS  |  Team BlackBit  |  ${new Date().toLocaleString()}`, size: 18, color: "888888" })],
+          children: [
+            new TextRun({ text: "Report ID: ", bold: true, size: 18, color: "888888" }),
+            new TextRun({ text: reportId, size: 18, color: "888888" }),
+            new TextRun({ text: "   |   Generated: ", bold: true, size: 18, color: "888888" }),
+            new TextRun({ text: new Date().toLocaleString(), size: 18, color: "888888" }),
+            new TextRun({ text: "   |   Team BlackBit · Google Solution Challenge 2026", size: 18, color: "888888" }),
+          ],
           alignment: AlignmentType.CENTER,
           spacing: { after: 600 },
-        }),
-      ];
+        })
+      );
 
-      const lines = (data.content || "").split("\n");
+      docChildren.push(
+        new Paragraph({
+          children: [new TextRun({ text: "SUMMARY STATISTICS", bold: true, size: 28, color: "1E3A5F" })],
+          heading: HeadingLevel.HEADING_1,
+          spacing: { before: 400, after: 200 },
+        })
+      );
+
+      const summaryTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Metric", bold: true, size: 20, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Value", bold: true, size: 20, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Venue / Device", size: 20 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${deviceLocation || "Unknown"} (${deviceName})`, size: 20 })] })] }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Report Period", size: 20 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Up to ${reportDate}`, size: 20 })] })] }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Total Events", size: 20 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.length), size: 20, bold: true })] })] }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Critical", size: 20, color: "EF4444" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.filter(a => a.severity === "CRITICAL").length), size: 20, bold: true, color: "EF4444" })] })] }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "High", size: 20, color: "F97316" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.filter(a => a.severity === "HIGH").length), size: 20, bold: true, color: "F97316" })] })] }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Medium", size: 20, color: "EAB308" })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.filter(a => a.severity === "MEDIUM").length), size: 20, bold: true, color: "EAB308" })] })] }),
+            ],
+          }),
+        ],
+      });
+      docChildren.push(summaryTable as any);
+
+      const lines = reportContent.split("\n");
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) {
@@ -152,14 +291,60 @@ export default function AlertsScreen() {
         }
       }
 
+      if (alerts.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            children: [new TextRun({ text: "INCIDENT LOG (LAST 20 EVENTS)", bold: true, size: 28, color: "1E3A5F" })],
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 600, after: 200 },
+          })
+        );
+
+        const headerRow = new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Time", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Severity", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Confidence", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
+          ],
+        });
+
+        const dataRows = alerts.slice(0, 20).map((a, i) => {
+          const sevColor = a.severity === "CRITICAL" ? "EF4444" : a.severity === "HIGH" ? "F97316" : "EAB308";
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: new Date(a.createdAt).toLocaleString(), size: 16 })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: a.severity, bold: true, size: 16, color: sevColor })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${a.confidence}%`, size: 16 })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: a.message, size: 16 })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
+            ],
+          });
+        });
+
+        const logTable = new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [headerRow, ...dataRows],
+        });
+        docChildren.push(logTable as any);
+      }
+
+      docChildren.push(
+        new Paragraph({ text: "" }),
+        new Paragraph({ text: "" }),
+        new Paragraph({
+          children: [new TextRun({ text: `Report ID: ${reportId}  |  Generated by UnifyOS Crisis Coordination Platform  |  Team BlackBit  |  Google Solution Challenge 2026`, size: 16, color: "AAAAAA" })],
+          alignment: AlignmentType.CENTER,
+        })
+      );
+
       const doc = new Document({
-        creator: "UnifyOS",
-        title: `Incident Report — ${deviceLocation || "Venue"}`,
+        creator: "UnifyOS — Team BlackBit",
+        title: `Incident Report — ${deviceLocation || "Venue"} — ${reportDate}`,
         description: "Generated by UnifyOS Crisis Coordination Platform",
         sections: [{ properties: {}, children: docChildren }],
       });
 
-      const fileName = `incident-report-${Date.now()}.docx`;
+      const fileName = `UnifyOS-Incident-Report-${Date.now()}.docx`;
 
       if (Platform.OS === "web") {
         const blob = await Packer.toBlob(doc);
@@ -169,7 +354,6 @@ export default function AlertsScreen() {
         a.download = fileName;
         a.click();
         URL.revokeObjectURL(url);
-        console.log("✅ Incident report downloaded:", fileName);
         Alert.alert("Report Downloaded", `${fileName} has been saved to your Downloads folder.`);
       } else {
         const buffer = await Packer.toBuffer(doc);
@@ -192,7 +376,7 @@ export default function AlertsScreen() {
       }
     } catch (err: any) {
       console.error("❌ Report generation error:", err?.message || err);
-      Alert.alert("Report Error", err?.message || "Failed to generate report. Check if the backend is running.");
+      Alert.alert("Report Error", err?.message || "Failed to generate report.");
     } finally {
       setGeneratingReport(false);
     }
@@ -255,6 +439,24 @@ export default function AlertsScreen() {
     { key: "all", label: "All" },
   ];
 
+  function getSeverityBarColor(severity: string) {
+    if (severity === "CRITICAL") return Colors.critical;
+    if (severity === "HIGH") return Colors.high;
+    if (severity === "MEDIUM") return Colors.medium;
+    return Colors.normal;
+  }
+
+  function timeAgo(ts: string) {
+    const diff = Date.now() - new Date(ts).getTime();
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
@@ -271,10 +473,10 @@ export default function AlertsScreen() {
             <Feather name="upload" size={14} color={Colors.accent} />
             <Text style={styles.exportText}>Export</Text>
           </Pressable>
-          {filteredAlerts.length > 0 && (
-            <Pressable onPress={dismissAll} style={styles.clearBtn}>
-              <Feather name="check-square" size={14} color={Colors.textSecondary} />
-              <Text style={styles.clearText}>Clear</Text>
+          {alerts.length > 0 && (
+            <Pressable onPress={handleClearAll} style={styles.clearBtn}>
+              <Feather name="trash-2" size={14} color={Colors.critical} />
+              <Text style={styles.clearText}>Clear All</Text>
             </Pressable>
           )}
         </View>
@@ -399,14 +601,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: Colors.bgCard,
+    backgroundColor: Colors.criticalBg,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.criticalBorder,
   },
-  clearText: { fontSize: 12, color: Colors.textSecondary, fontFamily: "Inter_500Medium" },
+  clearText: { fontSize: 12, color: Colors.critical, fontFamily: "Inter_500Medium" },
   langSection: {
     paddingHorizontal: 16,
     paddingTop: 10,

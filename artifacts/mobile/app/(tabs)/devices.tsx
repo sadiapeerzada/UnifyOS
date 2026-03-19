@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,7 +24,7 @@ interface DeviceInfo {
 }
 
 function generateGraphData() {
-  const points: { temp: number; smoke: number; confidence: number }[] = [];
+  const points: { temp: number; smoke: number; confidence: number; hour: number }[] = [];
   for (let h = 0; h < 24; h++) {
     let temp = 22 + Math.sin(h / 4) * 3;
     let smoke = 130 + Math.cos(h / 5) * 15;
@@ -37,6 +38,7 @@ function generateGraphData() {
       temp: Math.min(100, (temp / 60) * 100),
       smoke: Math.min(100, (smoke / 750) * 100),
       confidence,
+      hour: h,
     });
   }
   return points;
@@ -44,19 +46,48 @@ function generateGraphData() {
 
 const GRAPH_DATA = generateGraphData();
 
+interface GraphState {
+  viewStart: number;
+  viewCount: number;
+}
+
+interface TooltipData {
+  index: number;
+  x: number;
+  y: number;
+}
+
 function AnomalyGraph({ width }: { width: number }) {
   const gw = width - 56;
-  const gh = 130;
+  const gh = 150;
   const ml = 30;
   const mt = 10;
   const mb = 25;
   const innerH = gh - mb;
 
-  function xPos(i: number) { return ml + (i / 23) * gw; }
-  function yPos(v: number) { return mt + (1 - v / 100) * innerH; }
+  const [graphState, setGraphState] = useState<GraphState>({ viewStart: 0, viewCount: 24 });
+  const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const panRef = useRef({ startX: 0, startViewStart: 0, startCount: 24 });
+  const graphStateRef = useRef(graphState);
 
-  const tempPath = GRAPH_DATA.map((p, i) => `${i === 0 ? "M" : "L"} ${xPos(i)} ${yPos(p.temp)}`).join(" ");
-  const smokePath = GRAPH_DATA.map((p, i) => `${i === 0 ? "M" : "L"} ${xPos(i)} ${yPos(p.smoke)}`).join(" ");
+  useEffect(() => {
+    graphStateRef.current = graphState;
+  }, [graphState]);
+
+  const { viewStart, viewCount } = graphState;
+  const visibleData = GRAPH_DATA.slice(viewStart, viewStart + viewCount);
+  const minCount = 4;
+  const maxCount = 24;
+
+  function xPos(i: number, count: number) {
+    return ml + (i / Math.max(count - 1, 1)) * gw;
+  }
+  function yPos(v: number) {
+    return mt + (1 - v / 100) * innerH;
+  }
+
+  const tempPath = visibleData.map((p, i) => `${i === 0 ? "M" : "L"} ${xPos(i, visibleData.length)} ${yPos(p.temp)}`).join(" ");
+  const smokePath = visibleData.map((p, i) => `${i === 0 ? "M" : "L"} ${xPos(i, visibleData.length)} ${yPos(p.smoke)}`).join(" ");
 
   const thresholds = [
     { y: 20, color: "#22C55E", label: "Normal" },
@@ -64,38 +95,239 @@ function AnomalyGraph({ width }: { width: number }) {
     { y: 80, color: "#EF4444", label: "Critical" },
   ];
 
-  const timeLabels = [0, 4, 8, 12, 16, 20, 23];
+  const timeLabels = visibleData.length <= 8
+    ? visibleData.map((_, i) => i)
+    : [0, Math.floor(visibleData.length / 4), Math.floor(visibleData.length / 2), Math.floor(visibleData.length * 3 / 4), visibleData.length - 1];
+
+  function hitTestPoint(touchX: number, touchY: number) {
+    let closest = -1;
+    let minDist = 30;
+    visibleData.forEach((_, i) => {
+      const px = xPos(i, visibleData.length);
+      const dist = Math.abs(touchX - px);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = i;
+      }
+    });
+    return closest;
+  }
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 4,
+      onPanResponderGrant: (evt, gs) => {
+        panRef.current.startX = gs.x0;
+        panRef.current.startViewStart = graphStateRef.current.viewStart;
+        panRef.current.startCount = graphStateRef.current.viewCount;
+
+        const relX = gs.x0 - ml;
+        const cur = graphStateRef.current;
+        const idx = hitTestPoint(gs.x0, gs.y0);
+        if (idx >= 0) {
+          const pt = GRAPH_DATA[cur.viewStart + idx];
+          if (pt) {
+            setTooltip({ index: cur.viewStart + idx, x: xPos(idx, cur.viewCount), y: yPos(pt.confidence >= 20 ? pt.confidence : pt.temp) });
+          }
+        }
+      },
+      onPanResponderMove: (_, gs) => {
+        const dx = gs.dx;
+        const cur = graphStateRef.current;
+        const pointsPerPx = cur.viewCount / gw;
+        const shift = Math.round(-dx * pointsPerPx);
+        const newStart = Math.max(0, Math.min(24 - cur.viewCount, panRef.current.startViewStart + shift));
+        setGraphState(prev => ({ ...prev, viewStart: newStart }));
+        setTooltip(null);
+      },
+      onPanResponderRelease: () => {
+        setTooltip(null);
+      },
+    })
+  ).current;
+
+  function zoomIn() {
+    Haptics.selectionAsync();
+    setGraphState(prev => {
+      const newCount = Math.max(minCount, Math.floor(prev.viewCount * 0.6));
+      const center = prev.viewStart + Math.floor(prev.viewCount / 2);
+      const newStart = Math.max(0, Math.min(24 - newCount, center - Math.floor(newCount / 2)));
+      return { viewStart: newStart, viewCount: newCount };
+    });
+    setTooltip(null);
+  }
+
+  function zoomOut() {
+    Haptics.selectionAsync();
+    setGraphState(prev => {
+      const newCount = Math.min(maxCount, Math.ceil(prev.viewCount / 0.6));
+      const center = prev.viewStart + Math.floor(prev.viewCount / 2);
+      const newStart = Math.max(0, Math.min(24 - newCount, center - Math.floor(newCount / 2)));
+      return { viewStart: newStart, viewCount: newCount };
+    });
+    setTooltip(null);
+  }
+
+  function resetView() {
+    Haptics.selectionAsync();
+    setGraphState({ viewStart: 0, viewCount: 24 });
+    setTooltip(null);
+  }
+
+  const tooltipPoint = tooltip !== null ? GRAPH_DATA[tooltip.index] : null;
+  const isZoomed = viewCount < 24 || viewStart > 0;
 
   return (
-    <Svg width={width} height={gh + 20}>
-      {thresholds.map(t => (
-        <G key={t.y}>
-          <Line
-            x1={ml} y1={yPos(t.y)} x2={ml + gw} y2={yPos(t.y)}
-            stroke={t.color} strokeWidth={0.8} strokeDasharray="4,3" opacity={0.6}
-          />
-          <SvgText x={ml - 4} y={yPos(t.y) + 4} fontSize="7" fill={t.color} textAnchor="end" opacity={0.7}>
-            {t.y}
-          </SvgText>
-        </G>
-      ))}
-      <Path d={smokePath} stroke="#F59E0B" strokeWidth={1.5} fill="none" opacity={0.8} />
-      <Path d={tempPath} stroke={Colors.accentLight} strokeWidth={1.8} fill="none" />
-      {GRAPH_DATA.map((p, i) =>
-        p.confidence >= 50 ? (
-          <Circle key={i} cx={xPos(i)} cy={yPos(p.confidence)} r={4} fill="#EF4444" opacity={0.9} />
-        ) : null
-      )}
-      <Line x1={ml} y1={mt} x2={ml} y2={mt + innerH} stroke={Colors.border} strokeWidth={1} />
-      <Line x1={ml} y1={mt + innerH} x2={ml + gw} y2={mt + innerH} stroke={Colors.border} strokeWidth={1} />
-      {timeLabels.map(i => (
-        <SvgText key={i} x={xPos(i)} y={mt + innerH + 14} fontSize="7" fill={Colors.textMuted} textAnchor="middle">
-          {i === 0 ? "24h ago" : i === 23 ? "Now" : `${24 - i}h`}
-        </SvgText>
-      ))}
-    </Svg>
+    <View>
+      <View style={graphStyles.controls}>
+        <View style={graphStyles.zoomGroup}>
+          <Pressable onPress={zoomIn} style={graphStyles.zoomBtn}>
+            <Feather name="zoom-in" size={14} color={Colors.accent} />
+          </Pressable>
+          <Pressable onPress={zoomOut} style={graphStyles.zoomBtn}>
+            <Feather name="zoom-out" size={14} color={Colors.accent} />
+          </Pressable>
+        </View>
+        <Text style={graphStyles.rangeLabel}>
+          {`${24 - viewStart - viewCount}h – ${24 - viewStart}h ago · Showing ${viewCount}h`}
+        </Text>
+        {isZoomed && (
+          <Pressable onPress={resetView} style={graphStyles.resetBtn}>
+            <Feather name="refresh-cw" size={11} color={Colors.textSecondary} />
+            <Text style={graphStyles.resetText}>Reset</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <View {...panResponder.panHandlers}>
+        <Svg width={width} height={gh + 20}>
+          {thresholds.map(t => (
+            <G key={t.y}>
+              <Line
+                x1={ml} y1={yPos(t.y)} x2={ml + gw} y2={yPos(t.y)}
+                stroke={t.color} strokeWidth={0.8} strokeDasharray="4,3" opacity={0.6}
+              />
+              <SvgText x={ml - 4} y={yPos(t.y) + 4} fontSize="7" fill={t.color} textAnchor="end" opacity={0.7}>
+                {t.y}
+              </SvgText>
+            </G>
+          ))}
+
+          <Path d={smokePath} stroke="#F59E0B" strokeWidth={1.5} fill="none" opacity={0.8} />
+          <Path d={tempPath} stroke={Colors.accentLight} strokeWidth={1.8} fill="none" />
+
+          {visibleData.map((p, i) => (
+            <Circle
+              key={`temp-${i}`}
+              cx={xPos(i, visibleData.length)}
+              cy={yPos(p.temp)}
+              r={viewCount <= 8 ? 3 : 2}
+              fill={Colors.accentLight}
+              opacity={0.6}
+            />
+          ))}
+
+          {visibleData.map((p, i) =>
+            p.confidence >= 50 ? (
+              <Circle
+                key={`anom-${i}`}
+                cx={xPos(i, visibleData.length)}
+                cy={yPos(p.confidence)}
+                r={5}
+                fill="#EF4444"
+                opacity={0.9}
+              />
+            ) : null
+          )}
+
+          {tooltip !== null && tooltipPoint && (() => {
+            const localIdx = tooltip.index - viewStart;
+            const px = xPos(localIdx, viewCount);
+            const py = yPos(tooltipPoint.confidence >= 20 ? tooltipPoint.confidence : tooltipPoint.temp);
+            const ttW = 90;
+            const ttH = 52;
+            const ttX = Math.min(px - ttW / 2, gw + ml - ttW);
+            const ttY = py - ttH - 8;
+            return (
+              <G>
+                <Line x1={px} y1={mt} x2={px} y2={mt + innerH} stroke="#FFFFFF" strokeWidth={1} opacity={0.3} strokeDasharray="3,2" />
+                <Rect x={ttX} y={Math.max(ttY, mt)} width={ttW} height={ttH} rx={6} fill="#1E2A42" opacity={0.95} />
+                <SvgText x={ttX + ttW / 2} y={Math.max(ttY, mt) + 14} fontSize="9" fill={Colors.accentLight} textAnchor="middle" fontWeight="bold">
+                  {`${24 - tooltipPoint.hour}h ago`}
+                </SvgText>
+                <SvgText x={ttX + ttW / 2} y={Math.max(ttY, mt) + 26} fontSize="8" fill="#F59E0B" textAnchor="middle">
+                  {`Smoke: ${Math.round(tooltipPoint.smoke)}%`}
+                </SvgText>
+                <SvgText x={ttX + ttW / 2} y={Math.max(ttY, mt) + 38} fontSize="8" fill={tooltipPoint.confidence >= 50 ? "#EF4444" : Colors.textMuted} textAnchor="middle">
+                  {`Confidence: ${Math.round(tooltipPoint.confidence)}%`}
+                </SvgText>
+              </G>
+            );
+          })()}
+
+          <Line x1={ml} y1={mt} x2={ml} y2={mt + innerH} stroke={Colors.border} strokeWidth={1} />
+          <Line x1={ml} y1={mt + innerH} x2={ml + gw} y2={mt + innerH} stroke={Colors.border} strokeWidth={1} />
+
+          {timeLabels.map(i => (
+            <SvgText key={i} x={xPos(i, visibleData.length)} y={mt + innerH + 14} fontSize="7" fill={Colors.textMuted} textAnchor="middle">
+              {visibleData[i] ? `${24 - (viewStart + visibleData[i].hour)}h` : ""}
+            </SvgText>
+          ))}
+        </Svg>
+      </View>
+
+      <Text style={graphStyles.hint}>
+        {Platform.OS === "web" ? "Drag to pan · Use zoom buttons to zoom" : "Drag to pan · Pinch or use buttons to zoom · Tap points for details"}
+      </Text>
+    </View>
   );
 }
+
+const graphStyles = StyleSheet.create({
+  controls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  zoomGroup: { flexDirection: "row", gap: 4 },
+  zoomBtn: {
+    backgroundColor: Colors.accentGlow,
+    borderRadius: 8,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: Colors.accent + "40",
+  },
+  rangeLabel: {
+    flex: 1,
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textMuted,
+    textAlign: "center",
+  },
+  resetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.bgCard,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  resetText: { fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  hint: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textMuted,
+    textAlign: "center",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+});
 
 export default function DevicesScreen() {
   const insets = useSafeAreaInsets();

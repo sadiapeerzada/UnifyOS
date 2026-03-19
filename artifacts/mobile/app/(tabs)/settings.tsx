@@ -94,7 +94,10 @@ export default function SettingsScreen() {
     async function fetchStats() {
       setStatsLoading(true);
       try {
-        const res = await fetch(`${ENV.BACKEND_URL}/anomaly-stats`, { signal: AbortSignal.timeout(5000) });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${ENV.BACKEND_URL}/anomaly-stats`, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           setAnomalyStats(data);
@@ -119,29 +122,6 @@ export default function SettingsScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Clear", style: "destructive", onPress: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); clearAlertHistory(); } },
     ]);
-  }
-
-  async function handleTestGemini() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert("Testing Gemini API", "Sending test request...");
-    try {
-      console.log("🤖 Calling Gemini API test...");
-      const res = await fetch(`${ENV.BACKEND_URL}/test-gemini`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(10000),
-      });
-      const data = await res.json();
-      console.log("🤖 Gemini test result:", data);
-      if (data.ok) {
-        Alert.alert("✅ Gemini API Working", data.message);
-      } else {
-        Alert.alert("❌ Gemini API Error", data.message || "Unknown error");
-      }
-    } catch (err: any) {
-      console.error("❌ Gemini test fetch error:", err?.message);
-      Alert.alert("❌ Connection Error", "Could not reach the backend. Is the API server running?");
-    }
   }
 
   return (
@@ -210,17 +190,6 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI Integration</Text>
-          <Pressable style={styles.testGeminiBtn} onPress={handleTestGemini}>
-            <MaterialCommunityIcons name="robot-outline" size={16} color={Colors.accent} />
-            <Text style={styles.testGeminiBtnText}>Test Gemini API</Text>
-          </Pressable>
-          <Text style={[styles.sectionDesc, { marginTop: 2 }]}>
-            Sends a test query to Gemini AI. Check the browser console for detailed logs.
-          </Text>
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>System Stats</Text>
           {statsLoading && !anomalyStats ? (
             <View style={[styles.infoCard, { padding: 16, alignItems: "center" }]}>
@@ -250,8 +219,14 @@ export default function SettingsScreen() {
               </View>
             </>
           ) : (
-            <View style={[styles.infoCard, { padding: 16, alignItems: "center" }]}>
-              <Text style={{ fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" }}>Backend offline — stats unavailable</Text>
+            <View style={[styles.infoCard, { padding: 16, alignItems: "center", gap: 6 }]}>
+              <MaterialCommunityIcons name="server-off" size={20} color={Colors.textMuted} />
+              <Text style={{ fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_500Medium", textAlign: "center" }}>
+                Backend service unavailable
+              </Text>
+              <Text style={{ fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+                System stats will appear when the backend is reachable
+              </Text>
             </View>
           )}
         </View>
@@ -546,80 +521,99 @@ const styles = StyleSheet.create({
     fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary,
     textTransform: "uppercase", letterSpacing: 0.5,
   },
-  sectionDesc: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  sectionDesc: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textMuted, lineHeight: 17 },
   scenarioCard: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    backgroundColor: Colors.bgCard, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: Colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: Colors.bgCard,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
   },
-  scenarioIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  scenarioIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   scenarioText: { flex: 1, gap: 3 },
   scenarioTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  scenarioDesc: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular", lineHeight: 16 },
-  activeChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  activeText: { fontSize: 9, color: "#fff", fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
-  statsGrid: { flexDirection: "row", gap: 10 },
+  scenarioDesc: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, lineHeight: 15 },
+  activeChip: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  activeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff", letterSpacing: 0.5 },
+  statsGrid: { flexDirection: "row", gap: 8 },
   statBox: {
-    flex: 1, backgroundColor: Colors.bgCard, borderRadius: 14, padding: 14,
-    alignItems: "center", borderWidth: 1, borderColor: Colors.border, gap: 4,
+    flex: 1,
+    backgroundColor: Colors.bgCard,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    alignItems: "center",
+    gap: 3,
   },
-  statValue: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  statLabel: { fontSize: 10, color: Colors.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" },
+  statValue: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 9, fontFamily: "Inter_400Regular", color: Colors.textMuted, textAlign: "center" },
   clearBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.criticalBorder,
-    backgroundColor: Colors.criticalBg, paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: Colors.criticalBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.criticalBorder,
+    paddingVertical: 10,
   },
   clearBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
-  testGeminiBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.accent + "50",
-    backgroundColor: Colors.accentGlow, paddingVertical: 12,
-  },
-  testGeminiBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.accent },
   infoCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 14, borderWidth: 1,
-    borderColor: Colors.border, overflow: "hidden",
+    backgroundColor: Colors.bgCard,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
   },
   infoRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
   },
-  infoLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
-  infoValue: { fontSize: 12, color: Colors.text, fontFamily: "Inter_500Medium", maxWidth: "50%", textAlign: "right" },
-  threshDot: { width: 8, height: 8, borderRadius: 4 },
+  infoLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textMuted },
+  infoValue: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textSecondary, maxWidth: "50%" },
+  threshDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   threshValues: { flexDirection: "row", gap: 8 },
   threshWarn: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  threshAlert: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  callChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  callText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  aboutCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 18, borderWidth: 1,
-    borderColor: Colors.accentGlow, padding: 18,
-  },
-  aboutHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
-  aboutTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
-  aboutSubtitle: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
-  aboutDesc: { fontSize: 13, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
-  sdgRow: { flexDirection: "row", gap: 8 },
-  sdgChip: {
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-    backgroundColor: Colors.accentGlow, borderWidth: 1, borderColor: Colors.accent + "40",
-  },
-  sdgText: { fontSize: 11, fontFamily: "Inter_700Bold", color: Colors.accentLight },
-  teamText: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  threshAlert: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  callChip: { borderRadius: 7, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1 },
+  callText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   intervalInput: {
-    width: 52,
     backgroundColor: Colors.bg,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.accent,
+    color: Colors.text,
+    width: 54,
     textAlign: "center",
   },
+  aboutCard: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 20,
+    alignItems: "center",
+  },
+  aboutHeader: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 8 },
+  aboutTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
+  aboutSubtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 2 },
+  aboutDesc: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+  sdgRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  sdgChip: { backgroundColor: Colors.accentGlow, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: Colors.accent + "30" },
+  sdgText: { fontSize: 10, fontFamily: "Inter_700Bold", color: Colors.accent },
+  teamText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textMuted, marginTop: 4 },
 });
