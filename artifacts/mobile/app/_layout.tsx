@@ -104,7 +104,6 @@ function RootLayoutNav() {
       <Stack.Screen name="device-intro" options={{ headerShown: false }} />
       <Stack.Screen name="emergency-contacts" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="login" options={{ headerShown: false, presentation: "modal" }} />
-      <Stack.Screen name="about" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -15,7 +14,6 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
-import { SidebarDrawer } from "@/components/SidebarDrawer";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 
@@ -104,7 +102,6 @@ export default function DevicesScreen() {
   const { devices, getDeviceSensorData, getDeviceAnomaly, alerts, deviceName, deviceLocation } = useDashboard();
   const { width } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo>({ setupBy: "guest", setupDate: new Date().toLocaleDateString() });
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -155,14 +152,9 @@ export default function DevicesScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.menuBtn} onPress={() => setSidebarOpen(true)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="menu" size={22} color={Colors.text} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.title}>Devices</Text>
-            <Text style={styles.subtitle}>1 device active · Add more anytime</Text>
-          </View>
+        <View>
+          <Text style={styles.title}>Devices</Text>
+          <Text style={styles.subtitle}>1 device active · Add more anytime</Text>
         </View>
         <Pressable
           style={styles.addBtn}
@@ -323,8 +315,6 @@ export default function DevicesScreen() {
           </>
         )}
       </ScrollView>
-
-      <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
     </View>
   );
 }
@@ -377,17 +367,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  menuBtn: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.bgCard,
-    borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center",
-  },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
+  title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
   addBtn: {
     flexDirection: "row",
