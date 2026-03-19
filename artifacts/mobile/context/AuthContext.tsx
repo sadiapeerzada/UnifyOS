@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
   getRedirectResult,
   onAuthStateChanged,
   signOut as firebaseSignOut,
@@ -72,21 +73,15 @@ async function saveUserToFirestore(user: any) {
   } catch {}
 }
 
-async function runSignInWithPopup(): Promise<{ success: boolean; error?: string }> {
-  try {
-    const provider = new GoogleAuthProvider();
-    provider.addScope('profile');
-    provider.addScope('email');
-    console.log('🔐 Attempting signInWithPopup...');
-    const result = await signInWithPopup(auth, provider);
-    console.log('🔐 Sign-in successful for:', result.user.email);
-    await saveUserToFirestore(result.user);
-    return { success: true };
-  } catch (err: any) {
-    console.log('🔐 Sign-in error code:', err?.code);
-    console.log('🔐 Sign-in error message:', err?.message);
-    return { success: false, error: err?.code };
-  }
+function buildAuthUser(firebaseUser: any, role: string): AuthUser {
+  return {
+    uid: firebaseUser.uid,
+    name: firebaseUser.displayName || 'User',
+    email: firebaseUser.email || '',
+    photo: firebaseUser.photoURL || undefined,
+    role: role as 'admin' | 'responder',
+    isDemo: false,
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -101,18 +96,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
     const handleRedirectResult = async () => {
       try {
-        if (typeof getRedirectResult === 'function') {
-          const result = await getRedirectResult(auth);
-          if (result?.user) {
-            await saveUserToFirestore(result.user);
+        console.log('🔐 Checking for redirect result...');
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log('🔐 Redirect sign-in successful for:', result.user.email);
+          await saveUserToFirestore(result.user);
+          if (isAuthWindowContext()) {
+            console.log('🔐 Auth window: redirect complete, closing...');
+            setTimeout(() => { try { window.close(); } catch {} }, 500);
+          }
+        } else {
+          console.log('🔐 No redirect result (normal on first load)');
+          if (isAuthWindowContext() && !result) {
+            setIsLoading(false);
           }
         }
       } catch (error: any) {
-        console.debug('🔐 Redirect result check skipped:', error?.code);
+        console.log('🔐 Redirect result error:', error?.code, error?.message);
+        if (isAuthWindowContext()) {
+          setIsLoading(false);
+        }
       }
     };
+
     handleRedirectResult();
   }, []);
 
@@ -123,31 +133,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const userSnap = await getDoc(userDocRef);
           const role = userSnap.exists() ? (userSnap.data().role || 'admin') : 'admin';
-          setCurrentUser({
-            uid: firebaseUser.uid,
-            name: firebaseUser.displayName || 'User',
-            email: firebaseUser.email || '',
-            photo: firebaseUser.photoURL || undefined,
-            role,
-            isDemo: false,
-          });
-          setUserRole(role);
+          setCurrentUser(buildAuthUser(firebaseUser, role));
+          setUserRole(role as 'admin' | 'responder');
         } catch {
-          setCurrentUser({
-            uid: firebaseUser.uid,
-            name: firebaseUser.displayName || 'User',
-            email: firebaseUser.email || '',
-            role: 'admin',
-            isDemo: false,
-          });
+          setCurrentUser(buildAuthUser(firebaseUser, 'admin'));
+          setUserRole('admin');
         }
         setIsLoading(false);
 
         if (Platform.OS === 'web' && isAuthWindowContext()) {
-          console.log('🔐 Auth window: sign-in complete, closing window...');
-          setTimeout(() => {
-            try { window.close(); } catch {}
-          }, 300);
+          console.log('🔐 Auth window: onAuthStateChanged fired with user, closing...');
+          setTimeout(() => { try { window.close(); } catch {} }, 500);
         }
       } else {
         continueAsGuest();
@@ -160,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🔐 Login attempt starting...');
 
     if (Platform.OS === 'web' && isRunningInIframe()) {
-      console.log('🔐 Detected iframe context — opening new auth window');
+      console.log('🔐 Detected iframe — opening dedicated auth window');
       try {
         const baseUrl = window.location.href.split('?')[0].replace(/#.*$/, '');
         const authUrl = `${baseUrl}?__auth=1`;
@@ -170,44 +166,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'width=520,height=680,left=200,top=80,resizable=yes,scrollbars=yes'
         );
         if (authWin) {
-          console.log('🔐 Auth window opened at:', authUrl);
+          console.log('🔐 Auth window opened — waiting for redirect flow...');
           authWin.focus();
           return;
         }
-        console.log('🔐 Could not open auth window (blocked?) — trying direct sign-in');
+        console.log('🔐 window.open was blocked — attempting direct sign-in');
       } catch (e) {
-        console.log('🔐 window.open failed, trying direct sign-in', e);
+        console.log('🔐 window.open failed:', e);
       }
     }
 
     setIsLoading(true);
-    const { success, error } = await runSignInWithPopup();
-    if (!success) {
-      console.log('🔐 Sign-in failed, falling back to guest. Error:', error);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      console.log('🔐 Attempting signInWithPopup (direct)...');
+      const result = await signInWithPopup(auth, provider);
+      console.log('🔐 Direct sign-in successful for:', result.user.email);
+      await saveUserToFirestore(result.user);
+    } catch (err: any) {
+      console.log('🔐 Direct sign-in error:', err?.code, err?.message);
       continueAsGuest();
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [continueAsGuest]);
 
   const loginForAuthWindow = useCallback(async () => {
-    console.log('🔐 Auth window: starting sign-in...');
+    console.log('🔐 Auth window: initiating signInWithRedirect...');
     setIsLoading(true);
-    const { success, error } = await runSignInWithPopup();
-    if (!success) {
-      console.log('🔐 Auth window sign-in failed:', error);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('__unifyos_auth_redirect', '1');
+      }
+      await signInWithRedirect(auth, provider);
+    } catch (err: any) {
+      console.log('🔐 Auth window redirect error:', err?.code, err?.message);
       setIsLoading(false);
-      if (error === 'auth/unauthorized-domain') {
-        const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('__unifyos_auth_redirect');
+      }
+      if (err?.code === 'auth/unauthorized-domain') {
+        const domain = typeof window !== 'undefined' ? window.location.hostname : 'your domain';
         throw new Error(
-          `Domain not authorized in Firebase.\n\nAdd "${domain}" to:\nFirebase Console → Authentication → Settings → Authorized Domains`
+          `Domain not authorized.\n\nIn Firebase Console → Authentication → Settings → Authorized Domains, add:\n"${domain}"`
         );
       }
-      if (error === 'auth/popup-blocked') {
-        throw new Error('Popup was blocked. Please allow popups for this site and try again.');
-      }
-      if (error !== 'auth/popup-closed-by-user' && error !== 'auth/cancelled-popup-request') {
-        throw new Error(`Sign-in error: ${error}`);
-      }
+      throw new Error(err?.message || `Sign-in error: ${err?.code}`);
     }
   }, []);
 
