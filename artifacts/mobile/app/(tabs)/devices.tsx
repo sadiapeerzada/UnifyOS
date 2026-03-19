@@ -161,7 +161,6 @@ export default function DevicesScreen() {
           onPress={() => { Haptics.selectionAsync(); router.push("/device-setup"); }}
           accessibilityRole="button"
         >
-          <Feather name="plus" size={14} color={Colors.accent} />
           <Text style={styles.addBtnText}>+ Add Device</Text>
         </Pressable>
       </View>

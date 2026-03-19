@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import Svg, { Rect, Circle, Line, Polygon, Text as SvgText } from "react-native-svg";
+import { useDashboard } from "@/context/DashboardContext";
 
 const COMPONENT_CARDS = [
   { emoji: "🔧", title: "ESP32", desc: "The brain. WiFi built-in, processes all sensor data." },
@@ -137,11 +138,31 @@ async function navigateAfterIntro() {
 
 export default function DeviceIntroScreen() {
   const insets = useSafeAreaInsets();
+  const { devices, getDeviceSensorData } = useDashboard();
   const rockAnim = useRef(new Animated.Value(0)).current;
   const [tooltip, setTooltip] = useState<string | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const device = devices[0];
+  const sensorData = device ? getDeviceSensorData(device.id) : undefined;
+
+  const tempStatus = (sensorData?.temperature ?? 24) > 45
+    ? { label: "Critical", color: "#EF4444" }
+    : (sensorData?.temperature ?? 24) > 35
+    ? { label: "Elevated", color: "#F59E0B" }
+    : { label: "Normal", color: "#22C55E" };
+
+  const smokeStatus = (sensorData?.smoke ?? 130) > 400
+    ? { label: "Danger", color: "#EF4444" }
+    : (sensorData?.smoke ?? 130) > 250
+    ? { label: "Warning", color: "#F59E0B" }
+    : { label: "Normal", color: "#22C55E" };
+
+  const lastConnected = device
+    ? new Date(device.lastSeen).toLocaleTimeString()
+    : "Not connected";
 
   useEffect(() => {
     Animated.loop(
@@ -245,6 +266,54 @@ export default function DeviceIntroScreen() {
           ))}
         </View>
 
+        {/* Live Hardware Status */}
+        <View style={styles.liveSection}>
+          <Text style={styles.sectionLabel}>Live Hardware Status</Text>
+          <View style={styles.liveCard}>
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Device Name</Text>
+              <Text style={styles.liveValue}>{device?.name ?? "UnifyOS-001"}</Text>
+            </View>
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Firmware</Text>
+              <Text style={styles.liveValue}>v1.0.0</Text>
+            </View>
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Last Connected</Text>
+              <Text style={styles.liveValue}>{lastConnected}</Text>
+            </View>
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Connection</Text>
+              <Text style={[styles.liveValue, { color: device ? "#22C55E" : "#F59E0B" }]}>
+                {device ? "WiFi" : "Not paired"}
+              </Text>
+            </View>
+            <View style={styles.liveDivider} />
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Temperature</Text>
+              <Text style={[styles.liveValue, { color: tempStatus.color }]}>
+                {sensorData ? `${sensorData.temperature.toFixed(1)}°C` : "—"}
+                {"  "}
+                <Text style={{ fontSize: 11 }}>{tempStatus.label}</Text>
+              </Text>
+            </View>
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Smoke (MQ-2)</Text>
+              <Text style={[styles.liveValue, { color: smokeStatus.color }]}>
+                {sensorData ? `${Math.round(sensorData.smoke)} ppm` : "—"}
+                {"  "}
+                <Text style={{ fontSize: 11 }}>{smokeStatus.label}</Text>
+              </Text>
+            </View>
+            <View style={styles.liveRow}>
+              <Text style={styles.liveLabel}>Motion (PIR)</Text>
+              <Text style={styles.liveValue}>
+                {sensorData ? (sensorData.motion > 0 ? "Detected" : "Clear") : "—"}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* CTA buttons */}
         <TouchableOpacity style={styles.gotItBtn} onPress={handleDone} activeOpacity={0.85}>
           <Text style={styles.gotItText}>Got it, let's go →</Text>
@@ -309,4 +378,17 @@ const styles = StyleSheet.create({
   gotItText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   skipBtn: { paddingVertical: 8, alignItems: "center" },
   skipText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#8B9EC5" },
+  liveSection: { width: "100%", gap: 8 },
+  liveCard: {
+    width: "100%", backgroundColor: "#142552", borderRadius: 14,
+    borderWidth: 1, borderColor: "#1A73E820", overflow: "hidden",
+  },
+  liveRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: "#1A73E815",
+  },
+  liveLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#8B9EC5" },
+  liveValue: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFFFFF", textAlign: "right" },
+  liveDivider: { height: 1, backgroundColor: "#1A73E830", marginHorizontal: 14 },
 });

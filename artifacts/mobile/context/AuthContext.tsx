@@ -118,28 +118,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [continueAsGuest]);
 
   const login = useCallback(async () => {
+    console.log('🔐 Login attempt starting...');
     try {
       setIsLoading(true);
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
       try {
+        console.log('🔐 Attempting signInWithPopup...');
         const result = await signInWithPopup(auth, provider);
+        console.log('🔐 Sign-in successful for:', result.user.email);
         await saveUserToFirestore(result.user);
       } catch (popupError: any) {
+        console.log('🔐 Sign-in error code:', popupError?.code);
+        console.log('🔐 Sign-in error message:', popupError?.message);
         if (
           popupError.code === 'auth/popup-blocked' ||
           popupError.code === 'auth/popup-closed-by-user' ||
           popupError.code === 'auth/cancelled-popup-request'
         ) {
+          console.log('🔐 Popup blocked/closed — falling back to guest mode');
+          continueAsGuest();
+        } else if (
+          popupError.code === 'auth/operation-not-supported-in-this-environment' ||
+          popupError.code === 'auth/invalid-oauth-provider'
+        ) {
+          console.log('🔐 Auth not supported in this environment — falling back to guest mode');
           continueAsGuest();
         } else {
-          console.error('Sign in error:', popupError);
+          console.error('🔐 Unexpected sign-in error:', popupError);
           continueAsGuest();
         }
       }
-    } catch (err) {
-      console.error('Login error:', err);
+    } catch (err: any) {
+      console.error('🔐 Login error:', err?.code, err?.message);
       continueAsGuest();
     } finally {
       setIsLoading(false);

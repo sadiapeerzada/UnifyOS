@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -48,12 +48,38 @@ export default function SettingsScreen() {
   const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState(true);
+  const [deviceMonitored, setDeviceMonitored] = useState(true);
+  const [updateInterval, setUpdateInterval] = useState("5");
 
   useEffect(() => {
-    AsyncStorage.getItem("unifyos_voice_alerts").then(val => {
-      if (val === "false") setVoiceAlertsEnabled(false);
+    AsyncStorage.multiGet(["unifyos_voice_alerts", "unifyos_device_monitored", "unifyos_update_interval"]).then(pairs => {
+      if (pairs[0][1] === "false") setVoiceAlertsEnabled(false);
+      if (pairs[1][1] === "false") setDeviceMonitored(false);
+      if (pairs[2][1]) setUpdateInterval(pairs[2][1]);
     });
   }, []);
+
+  function handleDeviceMonitoredToggle(value: boolean) {
+    setDeviceMonitored(value);
+    AsyncStorage.setItem("unifyos_device_monitored", value ? "true" : "false");
+    Haptics.selectionAsync();
+  }
+
+  function handleIntervalChange(text: string) {
+    const digits = text.replace(/[^0-9]/g, "");
+    setUpdateInterval(digits);
+  }
+
+  function handleIntervalSubmit() {
+    let val = parseInt(updateInterval, 10);
+    if (isNaN(val) || val < 5) val = 5;
+    if (val > 300) val = 300;
+    const clamped = String(val);
+    setUpdateInterval(clamped);
+    AsyncStorage.setItem("unifyos_update_interval", clamped);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("Saved", `Update interval set to ${clamped} seconds.`);
+  }
 
   function handleVoiceToggle(value: boolean) {
     setVoiceAlertsEnabled(value);
@@ -290,12 +316,42 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>System Info</Text>
           <View style={styles.infoCard}>
             <InfoRow label="Platform" value="UnifyOS v1.0.0" icon="cpu" />
-            <InfoRow label="Devices Monitored" value="1 Smart Panic Button (Main Lobby)" icon="radio" />
-            <InfoRow label="Update Interval" value="2 seconds" icon="refresh-cw" />
+            <View style={[styles.infoRow, { paddingVertical: 14 }]}>
+              <MaterialCommunityIcons name="radio-tower" size={14} color={Colors.textMuted} />
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>Device Monitored</Text>
+              <Text style={[styles.infoValue, { color: Colors.textMuted, fontSize: 11 }]}>
+                {deviceMonitored ? "Active" : "Standby"}
+              </Text>
+              <Switch
+                value={deviceMonitored}
+                onValueChange={handleDeviceMonitoredToggle}
+                trackColor={{ false: Colors.border, true: Colors.accent + "80" }}
+                thumbColor={deviceMonitored ? Colors.accent : Colors.textMuted}
+              />
+            </View>
+            <View style={[styles.infoRow, { paddingVertical: 10 }]}>
+              <Feather name="refresh-cw" size={14} color={Colors.textMuted} />
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>Update Interval</Text>
+              <TextInput
+                style={styles.intervalInput}
+                value={updateInterval}
+                onChangeText={handleIntervalChange}
+                onSubmitEditing={handleIntervalSubmit}
+                onBlur={handleIntervalSubmit}
+                keyboardType="number-pad"
+                maxLength={3}
+                returnKeyType="done"
+                selectTextOnFocus
+              />
+              <Text style={{ fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" }}>sec</Text>
+            </View>
             <InfoRow label="Detection Algorithm" value="Statistical Threshold + Rate of Change" icon="activity" />
             <InfoRow label="Max Confidence" value="100%" icon="percent" />
             <InfoRow label="Backend URL" value={ENV.BACKEND_URL} icon="server" />
           </View>
+          <Text style={[styles.sectionDesc, { marginTop: 2 }]}>
+            Interval range: 5 – 300 seconds. Device Monitored toggles between active monitoring and standby.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -331,7 +387,7 @@ export default function SettingsScreen() {
               <View key={s} style={styles.sdgChip}><Text style={styles.sdgText}>{s}</Text></View>
             ))}
           </View>
-          <Text style={styles.teamText}>Team BlackBit · Asna Mirza · Sadia Peerzada</Text>
+          <Text style={styles.teamText}>Team BlackBit</Text>
         </View>
       </ScrollView>
     </View>
@@ -513,4 +569,17 @@ const styles = StyleSheet.create({
   },
   sdgText: { fontSize: 11, fontFamily: "Inter_700Bold", color: Colors.accentLight },
   teamText: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  intervalInput: {
+    width: 52,
+    backgroundColor: Colors.bg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.accent,
+    textAlign: "center",
+  },
 });
