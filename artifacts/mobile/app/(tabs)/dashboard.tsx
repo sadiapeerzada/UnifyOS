@@ -160,8 +160,8 @@ export default function DashboardScreen() {
               onPress={() => router.push('/(tabs)/')}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="account-outline" size={14} color={Colors.accent} />
-              <Text style={styles.signInText}>Sign In</Text>
+              <MaterialCommunityIcons name="information-outline" size={14} color={Colors.accent} />
+              <Text style={styles.signInText}>About</Text>
             </TouchableOpacity>
           )}
         </View>

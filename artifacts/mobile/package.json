@@ -56,6 +56,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "docx": "^9.6.1",
     "expo-auth-session": "^7.0.10",
     "expo-crypto": "~15.0.8",
     "expo-file-system": "~19.0.21",

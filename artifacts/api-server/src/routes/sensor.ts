@@ -2,7 +2,7 @@ import { Router, type IRouter } from 'express';
 import cors from 'cors';
 import { anomalyDetector } from '../lib/anomalyDetector.js';
 import { broadcastSensorUpdate, recordHardwarePing, getStatus } from '../lib/wsServer.js';
-import { generateIncidentSummary } from '../services/gemini.js';
+import { generateIncidentSummary, generateIncidentReport, testGeminiConnection } from '../services/gemini.js';
 import { getAllTranslations } from '../services/translator.js';
 import { db } from '@workspace/db';
 import { devicesTable, sensorReadingsTable, alertsTable } from '@workspace/db';
@@ -128,6 +128,24 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
 router.get('/status', openCors, (_req, res) => {
   res.json(getStatus());
+});
+
+router.post('/test-gemini', openCors, async (_req, res) => {
+  console.log('🤖 [Gemini] /test-gemini endpoint called');
+  const result = await testGeminiConnection();
+  res.json(result);
+});
+
+router.post('/generate-incident-report', openCors, async (req, res) => {
+  try {
+    const { venue, alerts: alertHistory } = req.body;
+    console.log('📄 [Report] Generate incident report request for venue:', venue);
+    const content = await generateIncidentReport(venue || 'Unknown Venue', alertHistory || []);
+    res.json({ ok: true, content });
+  } catch (err: any) {
+    console.error('❌ [Report] Failed to generate report:', err?.message);
+    res.status(500).json({ ok: false, error: err?.message || 'Failed' });
+  }
 });
 
 export default router;

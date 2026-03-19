@@ -21,8 +21,8 @@ function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "gauge", selected: "gauge.with.needle.fill" }} />
-        <Label>Dashboard</Label>
+        <Icon sf={{ default: "info.circle", selected: "info.circle.fill" }} />
+        <Label>About</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="devices">
         <Icon sf={{ default: "cpu", selected: "cpu.fill" }} />
@@ -80,12 +80,12 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: "About",
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
-              <SymbolView name="gauge" tintColor={color} size={size} />
+              <SymbolView name="info.circle" tintColor={color} size={size} />
             ) : (
-              <MaterialCommunityIcons name="gauge" size={size} color={color} />
+              <MaterialCommunityIcons name="information-outline" size={size} color={color} />
             ),
         }}
       />

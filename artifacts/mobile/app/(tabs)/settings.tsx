@@ -121,6 +121,29 @@ export default function SettingsScreen() {
     ]);
   }
 
+  async function handleTestGemini() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert("Testing Gemini API", "Sending test request...");
+    try {
+      console.log("🤖 Calling Gemini API test...");
+      const res = await fetch(`${ENV.BACKEND_URL}/test-gemini`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json();
+      console.log("🤖 Gemini test result:", data);
+      if (data.ok) {
+        Alert.alert("✅ Gemini API Working", data.message);
+      } else {
+        Alert.alert("❌ Gemini API Error", data.message || "Unknown error");
+      }
+    } catch (err: any) {
+      console.error("❌ Gemini test fetch error:", err?.message);
+      Alert.alert("❌ Connection Error", "Could not reach the backend. Is the API server running?");
+    }
+  }
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
@@ -184,6 +207,17 @@ export default function SettingsScreen() {
             <Feather name="trash-2" size={14} color={Colors.critical} />
             <Text style={styles.clearBtnText}>Clear History</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>AI Integration</Text>
+          <Pressable style={styles.testGeminiBtn} onPress={handleTestGemini}>
+            <MaterialCommunityIcons name="robot-outline" size={16} color={Colors.accent} />
+            <Text style={styles.testGeminiBtnText}>Test Gemini API</Text>
+          </Pressable>
+          <Text style={[styles.sectionDesc, { marginTop: 2 }]}>
+            Sends a test query to Gemini AI. Check the browser console for detailed logs.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -537,6 +571,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.criticalBg, paddingVertical: 10,
   },
   clearBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.critical },
+  testGeminiBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.accent + "50",
+    backgroundColor: Colors.accentGlow, paddingVertical: 12,
+  },
+  testGeminiBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.accent },
   infoCard: {
     backgroundColor: Colors.bgCard, borderRadius: 14, borderWidth: 1,
     borderColor: Colors.border, overflow: "hidden",

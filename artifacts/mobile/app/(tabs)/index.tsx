@@ -8,11 +8,9 @@ import {
   Text,
   View,
   Linking,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
 import { LiveIndicator } from "@/components/LiveIndicator";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
@@ -62,7 +60,7 @@ const ALERT_LEVELS = [
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { devices, activeAlerts } = useDashboard();
-  const { currentUser, login, isLoading } = useAuth();
+  const { currentUser } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -104,27 +102,14 @@ export default function HomeScreen() {
             UnifyOS connects smart IoT panic buttons to a live crisis dashboard, using anomaly detection algorithms to identify fire, smoke, and evacuation events — and alert responders in seconds.
           </Text>
 
-          <View style={styles.heroCTARow}>
-            <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); login(); }}
-              style={styles.primaryBtn}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <MaterialCommunityIcons name="google" size={16} color="#fff" />
-              )}
-              <Text style={styles.primaryBtnText}>Sign in with Google</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/dashboard"); }}
-              style={styles.secondaryBtn}
-            >
-              <MaterialCommunityIcons name="account-outline" size={15} color={Colors.textSecondary} />
-              <Text style={styles.secondaryBtnText}>Continue as Guest</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => router.push("/(tabs)/dashboard")}
+            style={styles.primaryBtn}
+          >
+            <MaterialCommunityIcons name="gauge" size={16} color="#fff" />
+            <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
+          </Pressable>
+
           <View style={[styles.statusBanner, { backgroundColor: statusColor + "12", borderColor: statusColor + "40" }]}>
             <MaterialCommunityIcons
               name={overallStatus === "CRITICAL" ? "fire-alert" : overallStatus === "ACTIVE" ? "alert" : "shield-check"}
