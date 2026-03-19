@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -24,6 +25,7 @@ interface AuthContextValue {
   isDemo: boolean;
   isLoading: boolean;
   login: () => void;
+  loginForAuthWindow: () => Promise<void>;
   logout: () => Promise<void>;
   continueAsGuest: () => void;
 }
@@ -37,6 +39,23 @@ const GUEST_USER: AuthUser = {
   role: 'admin',
   isDemo: true,
 };
+
+function isRunningInIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
+function isAuthWindowContext(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('__auth') === '1';
+  } catch {
+    return false;
+  }
+}
 
 async function saveUserToFirestore(user: any) {
   try {
@@ -53,6 +72,23 @@ async function saveUserToFirestore(user: any) {
   } catch {}
 }
 
+async function runSignInWithPopup(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
+    console.log('🔐 Attempting signInWithPopup...');
+    const result = await signInWithPopup(auth, provider);
+    console.log('🔐 Sign-in successful for:', result.user.email);
+    await saveUserToFirestore(result.user);
+    return { success: true };
+  } catch (err: any) {
+    console.log('🔐 Sign-in error code:', err?.code);
+    console.log('🔐 Sign-in error message:', err?.message);
+    return { success: false, error: err?.code };
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthUser>(GUEST_USER);
   const [userRole, setUserRole] = useState<'admin' | 'responder'>('admin');
@@ -64,11 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  // ✅ FIX: Wrapped getRedirectResult with safety check for Expo dev environment
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
-        // Check if getRedirectResult is actually available (might not be in Expo dev)
         if (typeof getRedirectResult === 'function') {
           const result = await getRedirectResult(auth);
           if (result?.user) {
@@ -76,11 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error: any) {
-        // Silently fail - this is expected in Expo dev environment
-        console.debug('Redirect result check skipped (Expo dev):', error?.code);
+        console.debug('🔐 Redirect result check skipped:', error?.code);
       }
     };
-
     handleRedirectResult();
   }, []);
 
@@ -110,6 +142,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
         }
         setIsLoading(false);
+
+        if (Platform.OS === 'web' && isAuthWindowContext()) {
+          console.log('🔐 Auth window: sign-in complete, closing window...');
+          setTimeout(() => {
+            try { window.close(); } catch {}
+          }, 300);
+        }
       } else {
         continueAsGuest();
       }
@@ -119,44 +158,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async () => {
     console.log('🔐 Login attempt starting...');
-    try {
-      setIsLoading(true);
-      const provider = new GoogleAuthProvider();
-      provider.addScope('profile');
-      provider.addScope('email');
+
+    if (Platform.OS === 'web' && isRunningInIframe()) {
+      console.log('🔐 Detected iframe context — opening new auth window');
       try {
-        console.log('🔐 Attempting signInWithPopup...');
-        const result = await signInWithPopup(auth, provider);
-        console.log('🔐 Sign-in successful for:', result.user.email);
-        await saveUserToFirestore(result.user);
-      } catch (popupError: any) {
-        console.log('🔐 Sign-in error code:', popupError?.code);
-        console.log('🔐 Sign-in error message:', popupError?.message);
-        if (
-          popupError.code === 'auth/popup-blocked' ||
-          popupError.code === 'auth/popup-closed-by-user' ||
-          popupError.code === 'auth/cancelled-popup-request'
-        ) {
-          console.log('🔐 Popup blocked/closed — falling back to guest mode');
-          continueAsGuest();
-        } else if (
-          popupError.code === 'auth/operation-not-supported-in-this-environment' ||
-          popupError.code === 'auth/invalid-oauth-provider'
-        ) {
-          console.log('🔐 Auth not supported in this environment — falling back to guest mode');
-          continueAsGuest();
-        } else {
-          console.error('🔐 Unexpected sign-in error:', popupError);
-          continueAsGuest();
+        const baseUrl = window.location.href.split('?')[0].replace(/#.*$/, '');
+        const authUrl = `${baseUrl}?__auth=1`;
+        const authWin = window.open(
+          authUrl,
+          'unifyos_google_auth',
+          'width=520,height=680,left=200,top=80,resizable=yes,scrollbars=yes'
+        );
+        if (authWin) {
+          console.log('🔐 Auth window opened at:', authUrl);
+          authWin.focus();
+          return;
         }
+        console.log('🔐 Could not open auth window (blocked?) — trying direct sign-in');
+      } catch (e) {
+        console.log('🔐 window.open failed, trying direct sign-in', e);
       }
-    } catch (err: any) {
-      console.error('🔐 Login error:', err?.code, err?.message);
-      continueAsGuest();
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(true);
+    const { success, error } = await runSignInWithPopup();
+    if (!success) {
+      console.log('🔐 Sign-in failed, falling back to guest. Error:', error);
+      continueAsGuest();
+    }
+    setIsLoading(false);
   }, [continueAsGuest]);
+
+  const loginForAuthWindow = useCallback(async () => {
+    console.log('🔐 Auth window: starting sign-in...');
+    setIsLoading(true);
+    const { success, error } = await runSignInWithPopup();
+    if (!success) {
+      console.log('🔐 Auth window sign-in failed:', error);
+      setIsLoading(false);
+      if (error === 'auth/unauthorized-domain') {
+        const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+        throw new Error(
+          `Domain not authorized in Firebase.\n\nAdd "${domain}" to:\nFirebase Console → Authentication → Settings → Authorized Domains`
+        );
+      }
+      if (error === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked. Please allow popups for this site and try again.');
+      }
+      if (error !== 'auth/popup-closed-by-user' && error !== 'auth/cancelled-popup-request') {
+        throw new Error(`Sign-in error: ${error}`);
+      }
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -174,9 +227,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isDemo,
     isLoading,
     login,
+    loginForAuthWindow,
     logout,
     continueAsGuest,
-  }), [currentUser, userRole, isDemo, isLoading, login, logout, continueAsGuest]);
+  }), [currentUser, userRole, isDemo, isLoading, login, loginForAuthWindow, logout, continueAsGuest]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

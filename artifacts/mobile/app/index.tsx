@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   StatusBar,
+  Platform,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,13 +29,60 @@ async function navigateAfterAuth() {
 }
 
 export default function LandingScreen() {
-  const { currentUser, isLoading, login, continueAsGuest } = useAuth();
+  const { currentUser, isLoading, login, continueAsGuest, loginForAuthWindow } = useAuth();
+  const params = useLocalSearchParams<{ __auth?: string }>();
+  const isAuthWindow = Platform.OS === 'web' && params.__auth === '1';
+  const [authWindowError, setAuthWindowError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoading && currentUser && !currentUser.isDemo) {
+    if (!isLoading && currentUser && !currentUser.isDemo && !isAuthWindow) {
       navigateAfterAuth();
     }
-  }, [currentUser, isLoading]);
+  }, [currentUser, isLoading, isAuthWindow]);
+
+  useEffect(() => {
+    if (isAuthWindow) {
+      console.log('🔐 Auth window detected — auto-triggering sign-in');
+      loginForAuthWindow().catch((e: any) => {
+        console.log('🔐 Auth window error:', e);
+        setAuthWindowError(e?.message || 'Sign-in failed');
+      });
+    }
+  }, [isAuthWindow]);
+
+  if (isAuthWindow) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LinearGradient colors={['#0D1B3E', '#112244', '#0A1628']} style={StyleSheet.absoluteFill} />
+        <MaterialCommunityIcons name="shield-check" size={52} color="#4F8EF7" style={{ marginBottom: 20 }} />
+        <Text style={{ color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold', marginBottom: 8 }}>UnifyOS</Text>
+        {authWindowError ? (
+          <>
+            <MaterialCommunityIcons name="alert-circle" size={28} color="#EF4444" style={{ marginBottom: 8 }} />
+            <Text style={{ color: '#EF4444', fontSize: 13, textAlign: 'center', maxWidth: 280, marginBottom: 16 }}>
+              {authWindowError}
+            </Text>
+            <TouchableOpacity
+              onPress={() => { setAuthWindowError(null); loginForAuthWindow(); }}
+              style={{ backgroundColor: '#4F8EF7', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
+            >
+              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Try Again</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <ActivityIndicator size="large" color="#4F8EF7" style={{ marginBottom: 12 }} />
+            <Text style={{ color: '#8BA4D4', fontSize: 13, fontFamily: 'Inter_400Regular' }}>
+              Signing in with Google...
+            </Text>
+            <Text style={{ color: '#3D5278', fontSize: 11, marginTop: 8, textAlign: 'center', maxWidth: 260 }}>
+              A Google sign-in window will appear. Complete sign-in there.
+            </Text>
+          </>
+        )}
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
