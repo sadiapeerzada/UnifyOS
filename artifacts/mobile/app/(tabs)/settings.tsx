@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { SidebarDrawer } from "@/components/SidebarDrawer";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { ENV } from "@/config/env";
@@ -47,6 +48,7 @@ export default function SettingsScreen() {
   const { scenario, setScenario, alerts, clearAlertHistory } = useDashboard();
   const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState(true);
   const [deviceMonitored, setDeviceMonitored] = useState(true);
   const [updateInterval, setUpdateInterval] = useState("5");
@@ -147,8 +149,15 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Preferences, scenarios & device management</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => setSidebarOpen(true)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="menu" size={22} color={Colors.text} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.title}>Settings</Text>
+            <Text style={styles.subtitle}>Preferences, scenarios & device management</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView
@@ -424,6 +433,8 @@ export default function SettingsScreen() {
           <Text style={styles.teamText}>Team BlackBit</Text>
         </View>
       </ScrollView>
+
+      <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
     </View>
   );
 }
@@ -532,12 +543,17 @@ function CallRow({ label, number, color }: { label: string; number: string; colo
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  menuBtn: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.bgCard,
+    borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center",
+  },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 20 },

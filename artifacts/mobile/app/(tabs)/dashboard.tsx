@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { AlertBanner } from "@/components/AlertBanner";
 import { SensorGauge } from "@/components/SensorGauge";
+import { SidebarDrawer } from "@/components/SidebarDrawer";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { useAuth } from "@/context/AuthContext";
@@ -27,6 +28,7 @@ export default function DashboardScreen() {
   const { currentUser, logout } = useAuth();
   const sensorData = useSensorData();
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"checking" | "connected" | "demo" | "lost">("checking");
   const [silenced, setSilenced] = useState(false);
@@ -135,33 +137,33 @@ export default function DashboardScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Dashboard</Text>
-          <Text style={styles.subtitle}>Monitoring: {deviceName} · {deviceLocation}</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => setSidebarOpen(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="menu" size={22} color={Colors.text} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.title}>Dashboard</Text>
+            <Text style={styles.subtitle}>{deviceName} · {deviceLocation}</Text>
+          </View>
         </View>
         <View style={styles.headerRight}>
-          <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>
+          <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : Colors.mediumBg, borderColor: sensorData.isLive ? Colors.normalBorder : Colors.mediumBorder }]}>
             <View style={[styles.liveDot, { backgroundColor: sensorData.isLive ? Colors.normal : Colors.medium }]} />
             <Text style={[styles.liveTagText, { color: sensorData.isLive ? Colors.normal : Colors.medium }]}>
-              {sensorData.isLive ? "Live" : "Demo"}
+              {sensorData.isLive ? "Live" : "Offline"}
             </Text>
           </View>
-          {currentUser && !currentUser.isDemo ? (
+          {currentUser && !currentUser.isDemo && (
             <TouchableOpacity
               style={styles.avatar}
               onPress={() => setAvatarOpen(v => !v)}
               activeOpacity={0.8}
             >
               <Text style={styles.avatarText}>{initials}</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.guestBtn}
-              onPress={() => router.push('/(tabs)/')}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons name="information-outline" size={14} color={Colors.accent} />
-              <Text style={styles.signInText}>About</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -173,7 +175,7 @@ export default function DashboardScreen() {
           <Text style={styles.dropdownEmail}>{currentUser?.email}</Text>
           <TouchableOpacity
             style={styles.logoutBtn}
-            onPress={() => { setAvatarOpen(false); logout().then(() => router.replace('/(tabs)/')); }}
+            onPress={() => { setAvatarOpen(false); logout().then(() => router.replace('/')); }}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons name="logout" size={14} color={Colors.critical} />
@@ -181,11 +183,6 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       )}
-
-      <View style={styles.statusBar}>
-        <View style={[styles.statusDot, { backgroundColor: connDot }]} />
-        <Text style={[styles.statusBarText, { color: connDot }]}>{connLabel}</Text>
-      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -350,6 +347,8 @@ export default function DashboardScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
     </View>
   );
 }
@@ -374,7 +373,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  menuBtn: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.bgCard,
+    borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center",
+  },
   title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
   liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
