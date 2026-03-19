@@ -23,7 +23,7 @@ import type { SimulateResult } from "@/services/sensorService";
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly } = useDashboard();
+  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly, deviceName, deviceLocation } = useDashboard();
   const { currentUser, logout } = useAuth();
   const sensorData = useSensorData();
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -137,7 +137,7 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Dashboard</Text>
-          <Text style={styles.subtitle}>Live sensor monitoring</Text>
+          <Text style={styles.subtitle}>Monitoring: {deviceName} · {deviceLocation}</Text>
         </View>
         <View style={styles.headerRight}>
           <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>

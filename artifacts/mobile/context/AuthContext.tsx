@@ -1,17 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import {
   GoogleAuthProvider,
-  signInWithCredential,
+  signInWithPopup,
+  getRedirectResult,
   onAuthStateChanged,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
-
-WebBrowser.maybeCompleteAuthSession();
 
 interface AuthUser {
   uid: string;
@@ -42,19 +38,25 @@ const GUEST_USER: AuthUser = {
   isDemo: true,
 };
 
+async function saveUserToFirestore(user: any) {
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        name: user.displayName,
+        email: user.email,
+        role: 'admin',
+        createdAt: new Date(),
+      });
+    }
+  } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthUser>(GUEST_USER);
   const [userRole, setUserRole] = useState<'admin' | 'responder'>('admin');
   const [isLoading, setIsLoading] = useState(true);
-
-  const [, response, promptAsync] = Google.useAuthRequest({
-    webClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
-    iosClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
-    androidClientId: '537179931085-jnb1083s5f6ibo4928khjir540t08md2.apps.googleusercontent.com',
-    redirectUri: "https://auth.expo.io/@sadiapeerzada/unifyos",
-    responseType: "id_token",
-    usePKCE: false,
-  });
 
   const continueAsGuest = useCallback(() => {
     setCurrentUser(GUEST_USER);
@@ -63,20 +65,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          saveUserToFirestore(result.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userDocRef);
-        const role = userSnap.exists() ? (userSnap.data().role || 'admin') : 'admin';
-        setCurrentUser({
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email || '',
-          photo: firebaseUser.photoURL || undefined,
-          role,
-          isDemo: false,
-        });
-        setUserRole(role);
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userSnap = await getDoc(userDocRef);
+          const role = userSnap.exists() ? (userSnap.data().role || 'admin') : 'admin';
+          setCurrentUser({
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email || '',
+            photo: firebaseUser.photoURL || undefined,
+            role,
+            isDemo: false,
+          });
+          setUserRole(role);
+        } catch {
+          setCurrentUser({
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email || '',
+            role: 'admin',
+            isDemo: false,
+          });
+        }
         setIsLoading(false);
       } else {
         continueAsGuest();
@@ -85,45 +107,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsub;
   }, [continueAsGuest]);
 
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token);
-      setIsLoading(true);
-      signInWithCredential(auth, credential)
-        .then(async (result) => {
-          const user = result.user;
-          const userDocRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userDocRef);
-          if (!userSnap.exists()) {
-            await setDoc(userDocRef, {
-              name: user.displayName,
-              email: user.email,
-              role: 'admin',
-              createdAt: new Date(),
-            });
-          }
-          const role = userSnap.exists() ? userSnap.data().role : 'admin';
-          setUserRole(role);
-        })
-        .catch((err) => {
-          console.error('Sign in error:', err);
-          continueAsGuest();
-        })
-        .finally(() => setIsLoading(false));
-    } else if (response?.type === 'error' || response?.type === 'dismiss') {
-      continueAsGuest();
-    }
-  }, [response, continueAsGuest]);
-
   const login = useCallback(async () => {
     try {
-      await promptAsync({ useProxy: true });
+      setIsLoading(true);
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      try {
+        const result = await signInWithPopup(auth, provider);
+        await saveUserToFirestore(result.user);
+      } catch (popupError: any) {
+        if (
+          popupError.code === 'auth/popup-blocked' ||
+          popupError.code === 'auth/popup-closed-by-user' ||
+          popupError.code === 'auth/cancelled-popup-request'
+        ) {
+          continueAsGuest();
+        } else {
+          console.error('Sign in error:', popupError);
+          continueAsGuest();
+        }
+      }
     } catch (err) {
       console.error('Login error:', err);
       continueAsGuest();
+    } finally {
+      setIsLoading(false);
     }
-  }, [promptAsync, continueAsGuest]);
+  }, [continueAsGuest]);
 
   const logout = useCallback(async () => {
     try {

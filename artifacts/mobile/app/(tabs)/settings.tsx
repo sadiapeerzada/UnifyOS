@@ -98,8 +98,8 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Scenarios</Text>
-        <Text style={styles.subtitle}>Simulate different emergency conditions</Text>
+        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.subtitle}>Preferences, scenarios & device management</Text>
       </View>
 
       <ScrollView
@@ -197,6 +197,11 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Alert Language</Text>
+          <LanguageRow />
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Alert Preferences</Text>
           <View style={styles.infoCard}>
             <View style={[styles.infoRow, { paddingVertical: 14 }]}>
@@ -221,6 +226,15 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Device Management</Text>
           <View style={styles.infoCard}>
+            <Pressable
+              style={styles.infoRow}
+              onPress={() => { Haptics.selectionAsync(); router.push("/emergency-contacts" as any); }}
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons name="phone-alert" size={14} color={Colors.critical} />
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>Emergency Contacts</Text>
+              <Feather name="chevron-right" size={14} color={Colors.textMuted} />
+            </Pressable>
             <Pressable
               style={styles.infoRow}
               onPress={() => { Haptics.selectionAsync(); router.push("/device-intro"); }}
@@ -321,6 +335,63 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+const LANG_OPTIONS = [
+  { code: "en", flag: "🇬🇧", name: "English" },
+  { code: "hi", flag: "🇮🇳", name: "Hindi" },
+  { code: "ur", flag: "🇵🇰", name: "Urdu" },
+  { code: "ar", flag: "🇸🇦", name: "Arabic" },
+  { code: "fr", flag: "🇫🇷", name: "French" },
+];
+
+function LanguageRow() {
+  const [selectedLang, setSelectedLang] = React.useState("en");
+  const [showPicker, setShowPicker] = React.useState(false);
+
+  React.useEffect(() => {
+    AsyncStorage.getItem("unifyos_language").then(l => { if (l) setSelectedLang(l); });
+  }, []);
+
+  function select(code: string) {
+    setSelectedLang(code);
+    AsyncStorage.setItem("unifyos_language", code);
+    Haptics.selectionAsync();
+    setShowPicker(false);
+  }
+
+  const current = LANG_OPTIONS.find(l => l.code === selectedLang);
+
+  return (
+    <>
+      <View style={styles.infoCard}>
+        <Pressable
+          style={styles.infoRow}
+          onPress={() => setShowPicker(v => !v)}
+        >
+          <Text style={{ fontSize: 14 }}>{current?.flag}</Text>
+          <Text style={[styles.infoLabel, { color: Colors.text }]}>Alert Language</Text>
+          <Text style={[styles.infoValue, { color: Colors.accent }]}>{current?.name}</Text>
+          <Feather name="chevron-right" size={14} color={Colors.textMuted} />
+        </Pressable>
+      </View>
+      {showPicker && (
+        <View style={[styles.infoCard, { marginTop: 4 }]}>
+          {LANG_OPTIONS.map((l, i) => (
+            <Pressable
+              key={l.code}
+              style={[styles.infoRow, i === LANG_OPTIONS.length - 1 && { borderBottomWidth: 0 }, selectedLang === l.code && { backgroundColor: Colors.accentGlow }]}
+              onPress={() => select(l.code)}
+            >
+              <Text style={{ fontSize: 16 }}>{l.flag}</Text>
+              <Text style={[styles.infoLabel, { color: Colors.text }]}>{l.name}</Text>
+              {selectedLang === l.code && <Feather name="check" size={14} color={Colors.accent} />}
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </>
   );
 }
 

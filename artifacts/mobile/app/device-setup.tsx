@@ -20,6 +20,7 @@ import { db } from "@/config/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { Colors } from "@/constants/colors";
 import { ENV } from "@/config/env";
+import { useDashboard } from "@/context/DashboardContext";
 import Svg, { Rect, Circle, Polygon, Text as SvgText } from "react-native-svg";
 
 const NAME_CHIPS = ["Main Lobby Button", "Kitchen Alert", "Reception", "Room 301", "Corridor Button"];
@@ -46,6 +47,7 @@ export default function DeviceSetupScreen() {
   const insets = useSafeAreaInsets();
   const { device_id } = useLocalSearchParams<{ device_id: string }>();
   const { currentUser } = useAuth();
+  const { updateDeviceInfo } = useDashboard();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -78,7 +80,16 @@ export default function DeviceSetupScreen() {
         body: JSON.stringify(payload),
       });
     } catch {}
-    await AsyncStorage.setItem("device_configured", "true");
+    const finalName = name.trim() || "Smart Panic Button";
+    const finalLocation = location.trim();
+    await AsyncStorage.multiSet([
+      ["device_configured", "true"],
+      ["device_name", finalName],
+      ["device_location", finalLocation],
+      ["device_setup_by", currentUser?.email || "guest"],
+      ["device_setup_at", new Date().toISOString()],
+    ]);
+    updateDeviceInfo(finalName, finalLocation);
     setSaving(false);
     setSuccess(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

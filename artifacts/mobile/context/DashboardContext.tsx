@@ -20,7 +20,7 @@ export interface Device {
 }
 
 export interface Alert {
-  id: number;
+  id: string | number;
   deviceId: string;
   deviceName: string;
   deviceLocation: string;
@@ -43,13 +43,9 @@ export interface Alert {
 const DEMO_TRANSLATED_MESSAGES: Record<string, string> = {
   en: "Emergency detected. Please evacuate immediately.",
   hi: "आपातकाल! कृपया तुरंत निकासी करें।",
+  ur: "ہنگامی صورتحال! فوری طور پر نکلیں۔",
   ar: "طوارئ! يرجى الإخلاء فوراً.",
   fr: "Urgence! Veuillez évacuer immédiatement.",
-  es: "¡Emergencia! Por favor evacúe inmediatamente.",
-  zh: "紧急情况！请立即疏散。",
-  ja: "緊急事態！直ちに避難してください。",
-  de: "Notfall! Bitte sofort evakuieren.",
-  ru: "Чрезвычайная ситуация! Немедленно эвакуируйтесь.",
 };
 
 export interface AnomalyResult {
@@ -60,7 +56,7 @@ export interface AnomalyResult {
   message: string;
 }
 
-const DEMO_DEVICES: Device[] = [
+const BASE_DEVICES: Device[] = [
   { id: "device-001", name: "UnifyOS-001", location: "Main Lobby", status: "online", lastSeen: new Date().toISOString(), createdAt: new Date().toISOString() },
 ];
 
@@ -131,13 +127,93 @@ function runAnomalyDetection(data: SensorData, prev: SensorData | null): Anomaly
   return { severity: "NORMAL", confidence: 0, anomalies: [], action: "NONE", message: "All sensors normal." };
 }
 
+function buildDemoAlerts(deviceName: string, deviceLocation: string): Alert[] {
+  return [
+    {
+      id: "demo-001",
+      deviceId: "device-001",
+      deviceName,
+      deviceLocation,
+      severity: "HIGH",
+      confidence: 73,
+      anomalies: ["TEMP_ELEVATED", "SMOKE_DETECTED"],
+      message: "Elevated temperature and smoke detected",
+      action: "ALERT_STAFF",
+      dismissed: false,
+      seen: false,
+      createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+      aiSummary: "Temperature 12°C above baseline with smoke at 380ppm. Pattern consistent with early smoke accumulation. Recommend immediate investigation.",
+      aiAction: "Alert staff. Investigate now.",
+      explanation: "Temperature rose 12°C above normal baseline. Smoke levels 260ppm above normal.",
+      triggeredSensors: ["TEMP_ELEVATED", "SMOKE_DETECTED"],
+      translatedMessages: {
+        en: "High temperature and smoke detected. Please investigate immediately.",
+        hi: "उच्च तापमान और धुआं पाया गया। कृपया तुरंत जांच करें।",
+        ur: "زیادہ درجہ حرارت اور دھواں پایا گیا۔ فوری جانچ کریں۔",
+        ar: "تم اكتشاف درجة حرارة مرتفعة ودخان. يرجى التحقق فوراً.",
+        fr: "Température élevée et fumée détectées. Veuillez enquêter immédiatement.",
+      },
+    },
+    {
+      id: "demo-002",
+      deviceId: "device-001",
+      deviceName,
+      deviceLocation,
+      severity: "MEDIUM",
+      confidence: 42,
+      anomalies: ["MOTION_DETECTED"],
+      message: "Unusual motion pattern detected",
+      action: "MONITOR",
+      dismissed: false,
+      seen: false,
+      createdAt: new Date(Date.now() - 48 * 60 * 1000).toISOString(),
+      aiSummary: "Repeated motion triggers outside normal hours. Could indicate unauthorized access.",
+      aiAction: "Monitor closely. Check for false trigger.",
+      explanation: "Motion sensor triggered 8 times in 5 minutes.",
+      triggeredSensors: ["MOTION_DETECTED"],
+      translatedMessages: {
+        en: "Unusual motion detected. Please monitor the area.",
+        hi: "असामान्य गतिविधि का पता चला। कृपया क्षेत्र की निगरानी करें।",
+        ur: "غیر معمولی حرکت کا پتہ چلا۔ براہ کرم علاقے کی نگرانی کریں۔",
+        ar: "تم اكتشاف حركة غير عادية. يرجى مراقبة المنطقة.",
+        fr: "Mouvement inhabituel détecté. Veuillez surveiller la zone.",
+      },
+    },
+    {
+      id: "demo-003",
+      deviceId: "device-001",
+      deviceName,
+      deviceLocation,
+      severity: "CRITICAL",
+      confidence: 91,
+      anomalies: ["TEMP_CRITICAL", "SMOKE_DETECTED", "FIRE_CORRELATION", "PANIC_BUTTON"],
+      message: "CRITICAL — Fire pattern confirmed",
+      action: "EVACUATE_IMMEDIATELY",
+      dismissed: true,
+      seen: true,
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      aiSummary: "Temperature 28°C above baseline with smoke at 750ppm. Panic button pressed. Triple sensor confirmation. Incident resolved by staff in 4 minutes.",
+      aiAction: "Evacuate immediately. Call 112.",
+      explanation: "Temperature critical at 52°C, smoke at 750ppm. Fire correlation confirmed. Staff responded in 4 minutes.",
+      triggeredSensors: ["TEMP_CRITICAL", "SMOKE_DETECTED", "FIRE_CORRELATION", "PANIC_BUTTON"],
+      translatedMessages: {
+        en: "CRITICAL EMERGENCY. Evacuate immediately. Do not use elevators.",
+        hi: "गंभीर आपातकाल। तुरंत निकासी करें। लिफ्ट का उपयोग न करें।",
+        ur: "سنگین ہنگامی صورتحال۔ فوری طور پر نکلیں۔ لفٹ استعمال نہ کریں۔",
+        ar: "طوارئ حرجة. أخلِ الفور. لا تستخدم المصاعد.",
+        fr: "URGENCE CRITIQUE. Évacuez immédiatement. N'utilisez pas les ascenseurs.",
+      },
+    },
+  ];
+}
+
 interface DashboardContextValue {
   devices: Device[];
   alerts: Alert[];
   activeAlerts: Alert[];
   scenario: string;
   setScenario: (s: string) => void;
-  dismissAlert: (id: number) => void;
+  dismissAlert: (id: string | number) => void;
   dismissAllAlerts: () => void;
   clearAlertHistory: () => void;
   markAlertsSeen: () => void;
@@ -145,21 +221,27 @@ interface DashboardContextValue {
   getDeviceAnomaly: (deviceId: string) => AnomalyResult | undefined;
   isLive: boolean;
   tick: number;
+  deviceName: string;
+  deviceLocation: string;
+  updateDeviceInfo: (name: string, location: string) => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 const ALERT_STORAGE_KEY = "unifyos_alert_history";
+const DEMO_ALERTS_LOADED_KEY = "unifyos_demo_alerts_loaded";
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
-  const [devices, setDevices] = useState<Device[]>(DEMO_DEVICES);
+  const [deviceName, setDeviceName] = useState("UnifyOS-001");
+  const [deviceLocation, setDeviceLocation] = useState("Main Lobby");
+  const [devices, setDevices] = useState<Device[]>(BASE_DEVICES);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [scenario, setScenarioState] = useState("normal");
   const [tick, setTick] = useState(0);
   const sensorDataRef = useRef<Map<string, SensorData>>(new Map());
   const anomalyRef = useRef<Map<string, AnomalyResult>>(new Map());
   const prevSensorRef = useRef<Map<string, SensorData>>(new Map());
-  const alertIdRef = useRef(1);
+  const alertIdRef = useRef(1000);
   const [, forceUpdate] = useState(0);
 
   const setScenario = useCallback((s: string) => {
@@ -167,14 +249,35 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setTick(0);
   }, []);
 
+  const updateDeviceInfo = useCallback((name: string, location: string) => {
+    setDeviceName(name);
+    setDeviceLocation(location);
+    setDevices(prev => prev.map(d => d.id === "device-001" ? { ...d, name, location } : d));
+  }, []);
+
   useEffect(() => {
-    AsyncStorage.getItem(ALERT_STORAGE_KEY).then(raw => {
+    async function init() {
+      const savedName = await AsyncStorage.getItem("device_name");
+      const savedLocation = await AsyncStorage.getItem("device_location");
+      const name = savedName || "UnifyOS-001";
+      const location = savedLocation || "Main Lobby";
+      setDeviceName(name);
+      setDeviceLocation(location);
+      setDevices(prev => prev.map(d => d.id === "device-001" ? { ...d, name, location } : d));
+
+      const raw = await AsyncStorage.getItem(ALERT_STORAGE_KEY);
+      const demoLoaded = await AsyncStorage.getItem(DEMO_ALERTS_LOADED_KEY);
+
       if (raw) {
-        try {
-          setAlerts(JSON.parse(raw));
-        } catch {}
+        try { setAlerts(JSON.parse(raw)); } catch {}
+      } else if (!demoLoaded) {
+        const demos = buildDemoAlerts(name, location);
+        setAlerts(demos);
+        await AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(demos));
+        await AsyncStorage.setItem(DEMO_ALERTS_LOADED_KEY, "true");
       }
-    });
+    }
+    init();
   }, []);
 
   useEffect(() => {
@@ -185,7 +288,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    DEMO_DEVICES.forEach(device => {
+    const currentDevices = BASE_DEVICES.map(d => ({
+      ...d,
+      name: deviceName,
+      location: deviceLocation,
+    }));
+
+    currentDevices.forEach(device => {
       const prev = prevSensorRef.current.get(device.id);
       const data = generateSensorData(device.id, tick, scenario);
       prevSensorRef.current.set(device.id, data);
@@ -197,10 +306,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (anomaly.severity !== "NORMAL") {
         const isHighOrCritical = anomaly.severity === "CRITICAL" || anomaly.severity === "HIGH";
         const newAlert: Alert = {
-          id: alertIdRef.current++,
+          id: String(alertIdRef.current++),
           deviceId: device.id,
-          deviceName: device.name,
-          deviceLocation: device.location,
+          deviceName,
+          deviceLocation,
           severity: anomaly.severity,
           confidence: anomaly.confidence,
           anomalies: anomaly.anomalies,
@@ -209,13 +318,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           dismissed: false,
           seen: false,
           createdAt: new Date().toISOString(),
+          triggeredSensors: anomaly.anomalies,
           ...(isHighOrCritical ? { translatedMessages: DEMO_TRANSLATED_MESSAGES } : {}),
         };
 
         if (anomaly.severity === "CRITICAL") {
           AsyncStorage.getItem("unifyos_voice_alerts").then(val => {
             if (val !== "false") {
-              Speech.speak(`Emergency alert. ${device.location}. ${anomaly.message}`, {
+              Speech.speak(`Emergency alert. ${deviceLocation}. ${anomaly.message}`, {
                 language: "en-US",
                 pitch: 1.0,
                 rate: 0.85,
@@ -232,7 +342,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    setDevices(DEMO_DEVICES.map(d => {
+    setDevices(currentDevices.map(d => {
       const anomaly = anomalyRef.current.get(d.id);
       return {
         ...d,
@@ -245,11 +355,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }));
 
     forceUpdate(n => n + 1);
-  }, [tick, scenario]);
+  }, [tick, scenario, deviceName, deviceLocation]);
 
-  const dismissAlert = useCallback((id: number) => {
+  const dismissAlert = useCallback((id: string | number) => {
     setAlerts(prev => {
-      const updated = prev.map(a => a.id === id ? { ...a, dismissed: true } : a);
+      const updated = prev.map(a => String(a.id) === String(id) ? { ...a, dismissed: true } : a);
       AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
@@ -303,7 +413,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     getDeviceAnomaly,
     isLive: true,
     tick,
-  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, tick]);
+    deviceName,
+    deviceLocation,
+    updateDeviceInfo,
+  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, tick, deviceName, deviceLocation, updateDeviceInfo]);
 
   return (
     <DashboardContext.Provider value={value}>
