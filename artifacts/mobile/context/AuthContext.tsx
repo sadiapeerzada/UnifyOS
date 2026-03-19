@@ -64,14 +64,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  // ✅ FIX: Wrapped getRedirectResult with safety check for Expo dev environment
   useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          saveUserToFirestore(result.user);
+    const handleRedirectResult = async () => {
+      try {
+        // Check if getRedirectResult is actually available (might not be in Expo dev)
+        if (typeof getRedirectResult === 'function') {
+          const result = await getRedirectResult(auth);
+          if (result?.user) {
+            await saveUserToFirestore(result.user);
+          }
         }
-      })
-      .catch(() => {});
+      } catch (error: any) {
+        // Silently fail - this is expected in Expo dev environment
+        console.debug('Redirect result check skipped (Expo dev):', error?.code);
+      }
+    };
+
+    handleRedirectResult();
   }, []);
 
   useEffect(() => {
