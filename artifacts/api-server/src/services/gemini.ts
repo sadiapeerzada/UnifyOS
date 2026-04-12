@@ -30,7 +30,7 @@ export async function testGeminiConnection(): Promise<{ ok: boolean; message: st
       console.error('❌ [Gemini] No API key found in environment');
       return { ok: false, message: 'GEMINI_API_KEY not set in environment' };
     }
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent('Reply with exactly: OK');
     const text = result.response.text().trim();
     console.log('✅ [Gemini] Test response:', text);
@@ -45,7 +45,7 @@ export async function generateIncidentReport(venue: string, alertHistory: any[])
   console.log('🤖 [Gemini] Generating incident report for venue:', venue);
   try {
     if (!process.env.GEMINI_API_KEY) throw new Error('No Gemini key');
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const alertSummary = alertHistory.slice(0, 20).map(a =>
       `[${a.severity}] ${new Date(a.createdAt).toLocaleString()} — ${a.deviceLocation}: ${a.message} (Confidence: ${a.confidence}%)`
@@ -80,7 +80,7 @@ Use professional emergency response language. Be specific and concise. Each sect
 export async function generateIncidentSummary(alertData: AlertData): Promise<GeminiResult> {
   try {
     if (!process.env.GEMINI_API_KEY) throw new Error('No Gemini key');
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     console.log('🤖 [Gemini] Calling generateIncidentSummary for location:', alertData.location);
 
     const prompt = `You are an emergency response AI for UnifyOS crisis coordination platform.
