@@ -1,4 +1,4 @@
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActionSheetIOS,
@@ -16,7 +16,6 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType } from "docx";
 import { AlertBanner } from "@/components/AlertBanner";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
@@ -123,257 +122,102 @@ export default function AlertsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGeneratingReport(true);
     try {
-      console.log("📄 Requesting incident report generation from backend...");
+      console.log("📄 Generating incident report as text...");
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const now = new Date();
+      const reportId = `INC-${Date.now()}`;
+      const criticals = alerts.filter(a => a.severity === "CRITICAL");
+      const highs = alerts.filter(a => a.severity === "HIGH");
+      const mediums = alerts.filter(a => a.severity === "MEDIUM");
 
-      let reportContent = "";
-      try {
-        const res = await fetch(`${ENV.BACKEND_URL}/generate-incident-report`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ venue: deviceLocation || deviceName || "Unknown Venue", alerts: alerts.slice(0, 30) }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        const data = await res.json();
-        reportContent = data.content || "";
-        console.log("📄 Report content received from backend");
-      } catch {
-        clearTimeout(timeoutId);
-        console.log("📄 Backend unavailable, generating local report...");
-        const criticals = alerts.filter(a => a.severity === "CRITICAL");
-        const highs = alerts.filter(a => a.severity === "HIGH");
-        const mediums = alerts.filter(a => a.severity === "MEDIUM");
-        reportContent = [
-          "EXECUTIVE SUMMARY",
-          `This incident report covers ${alerts.length} events recorded by the UnifyOS sensor network at ${deviceLocation || deviceName}.`,
-          "",
-          "EVENT STATISTICS",
-          `Total Events: ${alerts.length}`,
-          `Critical Events: ${criticals.length}`,
-          `High Severity Events: ${highs.length}`,
-          `Medium Severity Events: ${mediums.length}`,
-          "",
-          "INCIDENT TIMELINE",
-          ...alerts.slice(0, 20).map(a =>
-            `[${new Date(a.createdAt).toLocaleString()}] ${a.severity} (${a.confidence}%) — ${a.message}`
-          ),
-          "",
-          "SENSOR DATA ANALYSIS",
-          "Temperature monitoring: DHT22 sensors tracked ambient temperature every 2 seconds.",
-          "Smoke detection: MQ-2 gas sensors monitored particulate density in PPM.",
-          "Motion tracking: PIR occupancy sensors detected evacuation patterns.",
-          "Panic buttons: Physical triggers provided manual confirmation data.",
-          "",
-          "RECOMMENDED ACTIONS",
-          "1. Review sensor calibration schedules.",
-          "2. Conduct staff emergency response drills.",
-          "3. Update emergency contact lists.",
-          "4. Verify evacuation route signage.",
-          "5. Review threshold settings with facility management.",
-        ].join("\n");
-      }
+      let aiSection = "No AI summary available";
+      const topAlert = alerts.find(a => a.severity === "CRITICAL" || a.severity === "HIGH");
+      if (topAlert?.aiSummary) aiSection = topAlert.aiSummary;
 
-      const reportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-      const reportId = `RPT-${Date.now().toString(36).toUpperCase()}`;
+      const report = [
+        "╔══════════════════════════════════════════════════╗",
+        "║           UnifyOS — INCIDENT REPORT              ║",
+        "╚══════════════════════════════════════════════════╝",
+        "",
+        `Generated:   ${now.toLocaleString()}`,
+        `Incident ID: ${reportId}`,
+        `Device:      ${deviceName || "UnifyOS-001"}`,
+        `Location:    ${deviceLocation || "Main Lobby"}`,
+        "",
+        "──────────────────────────────────────────────────",
+        "SUMMARY STATISTICS",
+        "──────────────────────────────────────────────────",
+        `Total Events:    ${alerts.length}`,
+        `Critical Events: ${criticals.length}`,
+        `High Events:     ${highs.length}`,
+        `Medium Events:   ${mediums.length}`,
+        "",
+        "──────────────────────────────────────────────────",
+        "AI ANALYSIS",
+        "──────────────────────────────────────────────────",
+        aiSection,
+        "",
+        "──────────────────────────────────────────────────",
+        "INCIDENT TIMELINE (LAST 20 EVENTS)",
+        "──────────────────────────────────────────────────",
+        ...alerts.slice(0, 20).map(a =>
+          `[${a.severity}] ${new Date(a.createdAt).toLocaleString()} — ${a.deviceLocation}\n  ${a.message} (Confidence: ${a.confidence}%)\n  Sensors: ${(a.triggeredSensors || []).join(", ") || "N/A"}`
+        ),
+        "",
+        "──────────────────────────────────────────────────",
+        "SENSOR DATA ANALYSIS",
+        "──────────────────────────────────────────────────",
+        "• Temperature monitoring: DHT22 sensors tracked ambient temperature every 2 seconds.",
+        "• Smoke detection: MQ-2 gas sensors monitored particulate density in PPM.",
+        "• Motion tracking: PIR occupancy sensors detected evacuation patterns.",
+        "• Panic buttons: Physical triggers provided manual confirmation data.",
+        "• Flame detection: IR photodetector (760–1100 nm) monitored for open flames.",
+        "",
+        "──────────────────────────────────────────────────",
+        "RECOMMENDED ACTIONS",
+        "──────────────────────────────────────────────────",
+        "1. Review sensor calibration schedules.",
+        "2. Conduct staff emergency response drills.",
+        "3. Update emergency contact lists.",
+        "4. Verify evacuation route signage.",
+        "5. Review threshold settings with facility management.",
+        "",
+        "──────────────────────────────────────────────────",
+        "UnifyOS · Team BlackBit · Google Solution Challenge 2026",
+        "Hardware: ESP32 · MQ-2 · DHT22 · PIR · IR Flame · Panic Button",
+        "Device cost: ₹1,220 per unit",
+        "──────────────────────────────────────────────────",
+      ].join("\n");
 
-      const docChildren: Paragraph[] = [];
-
-      docChildren.push(
-        new Paragraph({
-          children: [new TextRun({ text: "UnifyOS", bold: true, size: 52, color: "1E3A5F" })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
-        }),
-        new Paragraph({
-          children: [new TextRun({ text: "Crisis Coordination Platform", size: 22, color: "4F8EF7" })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 },
-        }),
-        new Paragraph({
-          children: [new TextRun({ text: "INCIDENT REPORT", bold: true, size: 36, color: "1E3A5F" })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
-        }),
-        new Paragraph({
-          children: [new TextRun({ text: `${deviceLocation || deviceName || "Venue"} · ${reportDate}`, size: 24, color: "555555" })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 400 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: "Report ID: ", bold: true, size: 18, color: "888888" }),
-            new TextRun({ text: reportId, size: 18, color: "888888" }),
-            new TextRun({ text: "   |   Generated: ", bold: true, size: 18, color: "888888" }),
-            new TextRun({ text: new Date().toLocaleString(), size: 18, color: "888888" }),
-            new TextRun({ text: "   |   Team BlackBit · Google Solution Challenge 2026", size: 18, color: "888888" }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 600 },
-        })
-      );
-
-      docChildren.push(
-        new Paragraph({
-          children: [new TextRun({ text: "SUMMARY STATISTICS", bold: true, size: 28, color: "1E3A5F" })],
-          heading: HeadingLevel.HEADING_1,
-          spacing: { before: 400, after: 200 },
-        })
-      );
-
-      const summaryTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Metric", bold: true, size: 20, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Value", bold: true, size: 20, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
-            ],
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Venue / Device", size: 20 })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${deviceLocation || "Unknown"} (${deviceName})`, size: 20 })] })] }),
-            ],
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Report Period", size: 20 })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Up to ${reportDate}`, size: 20 })] })] }),
-            ],
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Total Events", size: 20 })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.length), size: 20, bold: true })] })] }),
-            ],
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Critical", size: 20, color: "EF4444" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.filter(a => a.severity === "CRITICAL").length), size: 20, bold: true, color: "EF4444" })] })] }),
-            ],
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "High", size: 20, color: "F97316" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.filter(a => a.severity === "HIGH").length), size: 20, bold: true, color: "F97316" })] })] }),
-            ],
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Medium", size: 20, color: "EAB308" })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(alerts.filter(a => a.severity === "MEDIUM").length), size: 20, bold: true, color: "EAB308" })] })] }),
-            ],
-          }),
-        ],
-      });
-      docChildren.push(summaryTable as any);
-
-      const lines = reportContent.split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          docChildren.push(new Paragraph({ text: "" }));
-        } else if (/^[A-Z][A-Z ]{2,}$/.test(trimmed)) {
-          docChildren.push(new Paragraph({
-            children: [new TextRun({ text: trimmed, bold: true, size: 26, color: "1E3A5F" })],
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 400, after: 100 },
-          }));
-        } else {
-          docChildren.push(new Paragraph({
-            children: [new TextRun({ text: trimmed, size: 22 })],
-            spacing: { after: 80 },
-          }));
-        }
-      }
-
-      if (alerts.length > 0) {
-        docChildren.push(
-          new Paragraph({
-            children: [new TextRun({ text: "INCIDENT LOG (LAST 20 EVENTS)", bold: true, size: 28, color: "1E3A5F" })],
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 600, after: 200 },
-          })
-        );
-
-        const headerRow = new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Time", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Severity", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Confidence", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 18, color: "FFFFFF" })] })], shading: { fill: "1E3A5F" } }),
-          ],
-        });
-
-        const dataRows = alerts.slice(0, 20).map((a, i) => {
-          const sevColor = a.severity === "CRITICAL" ? "EF4444" : a.severity === "HIGH" ? "F97316" : "EAB308";
-          return new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: new Date(a.createdAt).toLocaleString(), size: 16 })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: a.severity, bold: true, size: 16, color: sevColor })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${a.confidence}%`, size: 16 })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: a.message, size: 16 })] })], shading: { fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
-            ],
-          });
-        });
-
-        const logTable = new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [headerRow, ...dataRows],
-        });
-        docChildren.push(logTable as any);
-      }
-
-      docChildren.push(
-        new Paragraph({ text: "" }),
-        new Paragraph({ text: "" }),
-        new Paragraph({
-          children: [new TextRun({ text: `Report ID: ${reportId}  |  Generated by UnifyOS Crisis Coordination Platform  |  Team BlackBit  |  Google Solution Challenge 2026`, size: 16, color: "AAAAAA" })],
-          alignment: AlignmentType.CENTER,
-        })
-      );
-
-      const doc = new Document({
-        creator: "UnifyOS — Team BlackBit",
-        title: `Incident Report — ${deviceLocation || "Venue"} — ${reportDate}`,
-        description: "Generated by UnifyOS Crisis Coordination Platform",
-        sections: [{ properties: {}, children: docChildren }],
-      });
-
-      const fileName = `UnifyOS-Incident-Report-${Date.now()}.docx`;
+      const fileName = `UnifyOS_Incident_Report_${Date.now()}.txt`;
 
       if (Platform.OS === "web") {
-        const blob = await Packer.toBlob(doc);
+        const blob = new Blob([report], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = fileName;
+        anchor.click();
         URL.revokeObjectURL(url);
         Alert.alert("Report Downloaded", `${fileName} has been saved to your Downloads folder.`);
       } else {
-        const buffer = await Packer.toBuffer(doc);
-        const path = (FileSystem.documentDirectory ?? "") + fileName;
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-        const base64 = btoa(binary);
-        await FileSystem.writeAsStringAsync(path, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const filePath = (FileSystem.documentDirectory ?? "") + fileName;
+        await FileSystem.writeAsStringAsync(filePath, report, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(path, {
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          await Sharing.shareAsync(filePath, {
+            mimeType: "text/plain",
             dialogTitle: "Share Incident Report",
-            UTI: "com.microsoft.word.doc",
+            UTI: "public.plain-text",
           });
         } else {
-          Alert.alert("Report Saved", `Saved to: ${path}`);
+          Alert.alert("Report Saved", `Saved to: ${filePath}`);
         }
       }
+
+      console.log("📄 Report generated successfully:", fileName);
     } catch (err: any) {
       console.error("❌ Report generation error:", err?.message || err);
       Alert.alert("Report Error", err?.message || "Failed to generate report.");
@@ -528,22 +372,23 @@ export default function AlertsScreen() {
           <Text style={styles.title}>Alert History</Text>
           <Text style={styles.subtitle}>{alerts.length} total events logged</Text>
         </View>
-        <View style={styles.headerActions}>
-          <Pressable onPress={handleGenerateReport} style={styles.reportBtn} disabled={generatingReport} accessibilityRole="button">
-            <MaterialCommunityIcons name="file-word-outline" size={14} color={Colors.normal} />
-            <Text style={styles.reportText}>{generatingReport ? "Generating..." : "Report"}</Text>
-          </Pressable>
-          <Pressable onPress={handleExportSheet} style={styles.exportBtn} accessibilityRole="button">
-            <Feather name="upload" size={14} color={Colors.accent} />
-            <Text style={styles.exportText}>Export</Text>
-          </Pressable>
-          {alerts.length > 0 && (
-            <Pressable onPress={handleClearAll} style={styles.clearBtn}>
-              <Feather name="trash-2" size={14} color={Colors.critical} />
-              <Text style={styles.clearText}>Clear All</Text>
-            </Pressable>
-          )}
         </View>
+
+      <View style={styles.buttonsRow}>
+        <Pressable onPress={handleGenerateReport} style={styles.reportBtn} disabled={generatingReport} accessibilityRole="button">
+          <Feather name="file-text" size={12} color="#1A73E8" />
+          <Text style={styles.reportText}>{generatingReport ? "…" : "Report"}</Text>
+        </Pressable>
+        <Pressable onPress={handleExportSheet} style={styles.exportBtn} accessibilityRole="button">
+          <Feather name="share" size={12} color="#8BA4D4" />
+          <Text style={styles.exportText}>Export</Text>
+        </Pressable>
+        {alerts.length > 0 && (
+          <Pressable onPress={handleClearAll} style={styles.clearBtn}>
+            <Feather name="trash-2" size={12} color="#E53935" />
+            <Text style={styles.clearText}>Clear</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.langSection}>
