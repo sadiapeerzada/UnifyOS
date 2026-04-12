@@ -221,9 +221,10 @@ interface DashboardContextValue {
   getDeviceAnomaly: (deviceId: string) => AnomalyResult | undefined;
   isLive: boolean;
   tick: number;
+  deviceId: string;
   deviceName: string;
   deviceLocation: string;
-  updateDeviceInfo: (name: string, location: string) => void;
+  updateDeviceInfo: (id: string, name: string, location: string) => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -232,6 +233,7 @@ const ALERT_STORAGE_KEY = "unifyos_alert_history";
 const DEMO_ALERTS_LOADED_KEY = "unifyos_demo_alerts_loaded";
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
+  const [activeDeviceId, setActiveDeviceId] = useState("device-001");
   const [deviceName, setDeviceName] = useState("UnifyOS-001");
   const [deviceLocation, setDeviceLocation] = useState("Main Lobby");
   const [devices, setDevices] = useState<Device[]>(BASE_DEVICES);
@@ -249,21 +251,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setTick(0);
   }, []);
 
-  const updateDeviceInfo = useCallback((name: string, location: string) => {
+  const updateDeviceInfo = useCallback((id: string, name: string, location: string) => {
+    setActiveDeviceId(id);
     setDeviceName(name);
     setDeviceLocation(location);
-    setDevices(prev => prev.map(d => d.id === "device-001" ? { ...d, name, location } : d));
+    setDevices(prev => prev.map(d => d.id === id ? { ...d, name, location } : d));
   }, []);
 
   useEffect(() => {
     async function init() {
+      const savedId = await AsyncStorage.getItem("device_id");
       const savedName = await AsyncStorage.getItem("device_name");
       const savedLocation = await AsyncStorage.getItem("device_location");
+      const id = savedId || "device-001";
       const name = savedName || "UnifyOS-001";
       const location = savedLocation || "Main Lobby";
+      setActiveDeviceId(id);
       setDeviceName(name);
       setDeviceLocation(location);
-      setDevices(prev => prev.map(d => d.id === "device-001" ? { ...d, name, location } : d));
+      setDevices(prev => prev.map(d => d.id === "device-001" ? { ...d, id, name, location } : d));
 
       const raw = await AsyncStorage.getItem(ALERT_STORAGE_KEY);
       const demoLoaded = await AsyncStorage.getItem(DEMO_ALERTS_LOADED_KEY);
@@ -290,6 +296,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const currentDevices = BASE_DEVICES.map(d => ({
       ...d,
+      id: activeDeviceId,
       name: deviceName,
       location: deviceLocation,
     }));
@@ -355,7 +362,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }));
 
     forceUpdate(n => n + 1);
-  }, [tick, scenario, deviceName, deviceLocation]);
+  }, [tick, scenario, activeDeviceId, deviceName, deviceLocation]);
 
   const dismissAlert = useCallback((id: string | number) => {
     setAlerts(prev => {
@@ -413,10 +420,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     getDeviceAnomaly,
     isLive: true,
     tick,
+    deviceId: activeDeviceId,
     deviceName,
     deviceLocation,
     updateDeviceInfo,
-  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, tick, deviceName, deviceLocation, updateDeviceInfo]);
+  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, tick, activeDeviceId, deviceName, deviceLocation, updateDeviceInfo]);
 
   return (
     <DashboardContext.Provider value={value}>

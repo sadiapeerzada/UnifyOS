@@ -29,7 +29,7 @@ async function navigateAfterAuth() {
 }
 
 export default function LandingScreen() {
-  const { currentUser, isLoading, login, continueAsGuest, loginForAuthWindow } = useAuth();
+  const { currentUser, isLoading, authError, clearAuthError, login, continueAsGuest, loginForAuthWindow } = useAuth();
   const params = useLocalSearchParams<{ __auth?: string }>();
   const isAuthWindow = Platform.OS === 'web' && params.__auth === '1';
   const [authWindowError, setAuthWindowError] = useState<string | null>(null);
@@ -126,6 +126,13 @@ export default function LandingScreen() {
             <MaterialCommunityIcons name="google" size={20} color="#fff" />
             <Text style={styles.googleBtnText}>Sign in with Google</Text>
           </TouchableOpacity>
+
+          {authError ? (
+            <TouchableOpacity onPress={clearAuthError} activeOpacity={0.8} style={styles.errorBanner}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={14} color="#EF4444" />
+              <Text style={styles.errorText} numberOfLines={3}>{authError}</Text>
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity
             style={styles.guestBtn}
@@ -273,5 +280,24 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Inter_700Bold',
     color: '#4F8EF7',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    width: '100%',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: '#EF4444',
+    lineHeight: 17,
   },
 });

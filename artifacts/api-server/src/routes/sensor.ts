@@ -12,12 +12,31 @@ const router: IRouter = Router();
 
 const openCors = cors({ origin: '*' });
 
+router.options('/sensor-data', openCors, (_req, res) => { res.sendStatus(204); });
+
+router.post('/hardware/heartbeat', openCors, async (req, res) => {
+  const { deviceId: rawDeviceId, deviceName, firmware } = req.body;
+  const deviceId = rawDeviceId ?? 'device-001';
+  recordHardwarePing(deviceId);
+  const ts = new Date().toISOString();
+  console.log(`💓 [Heartbeat] ${ts} | device=${deviceId} | name="${deviceName ?? 'unknown'}" | firmware=${firmware ?? 'unknown'}`);
+  try {
+    await db.update(devicesTable)
+      .set({ lastSeen: new Date(), status: 'online' })
+      .where(eq(devicesTable.id, deviceId));
+  } catch {}
+  res.json({ ok: true, deviceId, serverTime: ts });
+});
+
 router.post('/sensor-data', openCors, async (req, res) => {
+  const ts = new Date().toISOString();
   try {
     const { temperature, smoke, motion, button, deviceId: rawDeviceId, crowd_density, audio_anomaly } = req.body;
     const deviceId = rawDeviceId ?? 'device-001';
     const crowdDensity: 'low' | 'medium' | 'high' | undefined = crowd_density;
     const audioAnomaly: boolean | undefined = audio_anomaly;
+
+    console.log(`📡 [Sensor] ${ts} | device=${deviceId} | temp=${temperature}°C | smoke=${smoke}ppm | motion=${motion} | button=${button}`);
 
     recordHardwarePing(deviceId);
 
@@ -66,21 +85,23 @@ router.post('/sensor-data', openCors, async (req, res) => {
       }
     }
 
+    let resolvedDeviceName = deviceId;
+    let resolvedDeviceLocation = anomaly.location;
+
     if (anomaly.severity !== 'NORMAL' && anomaly.severity !== 'CALIBRATING') {
       try {
-        let deviceName = deviceId;
-        let deviceLocation = anomaly.location;
         const deviceRows = await db.select().from(devicesTable).where(eq(devicesTable.id, deviceId));
         if (deviceRows[0]) {
-          deviceName = deviceRows[0].name;
-          deviceLocation = deviceRows[0].location || anomaly.location;
+          resolvedDeviceName = deviceRows[0].name;
+          resolvedDeviceLocation = deviceRows[0].location || anomaly.location;
           const status = anomaly.severity === 'CRITICAL' ? 'critical' : 'warning';
           await db.update(devicesTable).set({ status }).where(eq(devicesTable.id, deviceId));
         }
+        console.log(`🚨 [Alert] ${ts} | device=${deviceId} ("${resolvedDeviceName}") | severity=${anomaly.severity} | confidence=${anomaly.confidence}% | sensors=${anomaly.triggeredSensors?.join(',')}`);
         await db.insert(alertsTable).values({
           deviceId,
-          deviceName,
-          deviceLocation,
+          deviceName: resolvedDeviceName,
+          deviceLocation: resolvedDeviceLocation,
           severity: anomaly.severity as any,
           confidence: anomaly.confidence,
           anomalies: anomaly.anomalies,
@@ -89,7 +110,9 @@ router.post('/sensor-data', openCors, async (req, res) => {
           dismissed: false,
           createdAt: new Date(),
         });
-      } catch {}
+      } catch (dbErr: any) {
+        console.error(`⚠️ [Alert] DB write failed for device=${deviceId}: ${dbErr?.message}`);
+      }
     }
 
     const isHighOrCritical = anomaly.severity === 'HIGH' || anomaly.severity === 'CRITICAL';
@@ -112,6 +135,9 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
     res.json({
       status: 'ok',
+      deviceId,
+      deviceName: resolvedDeviceName,
+      deviceLocation: resolvedDeviceLocation,
       severity: anomaly.severity,
       confidence: anomaly.confidence,
       message: anomaly.message,
@@ -125,7 +151,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
       ...(translatedMessages ? { translatedMessages } : {}),
     });
   } catch (err) {
-    console.error(err);
+    console.error(`❌ [Sensor] ${ts} Unhandled error:`, err);
     res.status(500).json({ error: 'Failed to process sensor data' });
   }
 });

@@ -84,12 +84,13 @@ export default function DeviceSetupScreen() {
     const finalLocation = location.trim();
     await AsyncStorage.multiSet([
       ["device_configured", "true"],
+      ["device_id", deviceId],
       ["device_name", finalName],
       ["device_location", finalLocation],
       ["device_setup_by", currentUser?.email || "guest"],
       ["device_setup_at", new Date().toISOString()],
     ]);
-    updateDeviceInfo(finalName, finalLocation);
+    updateDeviceInfo(deviceId, finalName, finalLocation);
     setSaving(false);
     setSuccess(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
