@@ -23,13 +23,22 @@ const COMPONENT_CARDS = [
   { emoji: "🌡️", title: "DHT22", desc: "Monitors temperature & humidity in real time." },
   { emoji: "👁", title: "PIR", desc: "Tracks human occupancy and motion." },
   { emoji: "🚨", title: "Panic Button", desc: "One press — instant SOS to all staff." },
+  { emoji: "🔥", title: "Flame (NEW)", desc: "Direct IR fire detection. 1m range, GPIO configurable.", isNew: true },
 ];
 
 const SPECS = [
   { label: "⚡ <1 sec", sub: "Response" },
-  { label: "💰 ₹3,200", sub: "Cost" },
+  { label: "💰 ₹1,220", sub: "Cost" },
   { label: "📶 WiFi", sub: "Connectivity" },
   { label: "🔋 Battery", sub: "Backup" },
+];
+
+const COST_BREAKDOWN = [
+  { label: "ESP32 Microcontroller", cost: "₹350" },
+  { label: "Sensors (5 incl. Flame)", cost: "₹420" },
+  { label: "Battery (18650 Li-Ion)", cost: "₹250" },
+  { label: "Casing & Enclosure", cost: "₹150" },
+  { label: "Misc (PCB, wires, etc.)", cost: "₹50" },
 ];
 
 function DeviceSvg({ tooltip, onPressRed, onPressPir, onPressLed }: {
@@ -221,12 +230,17 @@ export default function DeviceIntroScreen() {
 
         {/* Component cards */}
         <View style={styles.cardSection}>
-          <Text style={styles.sectionLabel}>Components</Text>
+          <Text style={styles.sectionLabel}>5 Sensors + Flame Detection (NEW)</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
             {COMPONENT_CARDS.map(c => (
-              <View key={c.title} style={styles.card}>
+              <View key={c.title} style={[styles.card, (c as any).isNew && styles.cardNew]}>
+                {(c as any).isNew && (
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                )}
                 <Text style={styles.cardEmoji}>{c.emoji}</Text>
-                <Text style={styles.cardTitle}>{c.title}</Text>
+                <Text style={[styles.cardTitle, (c as any).isNew && { color: "#F97316" }]}>{c.title}</Text>
                 <Text style={styles.cardDesc}>{c.desc}</Text>
               </View>
             ))}
@@ -264,6 +278,23 @@ export default function DeviceIntroScreen() {
               <Text style={styles.specSub}>{s.sub}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Cost Breakdown */}
+        <View style={styles.costSection}>
+          <Text style={styles.sectionLabel}>Cost Breakdown</Text>
+          <View style={styles.costCard}>
+            {COST_BREAKDOWN.map((item, i) => (
+              <View key={item.label} style={[styles.costRow, i < COST_BREAKDOWN.length - 1 && { borderBottomWidth: 1, borderBottomColor: "#1A73E815" }]}>
+                <Text style={styles.costLabel}>{item.label}</Text>
+                <Text style={styles.costValue}>{item.cost}</Text>
+              </View>
+            ))}
+            <View style={styles.costTotalRow}>
+              <Text style={styles.costTotalLabel}>TOTAL DEVICE COST</Text>
+              <Text style={styles.costTotalValue}>₹1,220</Text>
+            </View>
+          </View>
         </View>
 
         {/* Live Hardware Status */}
@@ -349,7 +380,7 @@ const styles = StyleSheet.create({
   cardsRow: { gap: 10, paddingBottom: 4 },
   card: {
     width: 140, backgroundColor: "#142552", borderRadius: 16, padding: 14,
-    borderWidth: 1, borderColor: "#1A73E820", gap: 6,
+    borderWidth: 1, borderColor: "#1A73E820", gap: 6, position: "relative",
   },
   cardEmoji: { fontSize: 26 },
   cardTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
@@ -378,6 +409,35 @@ const styles = StyleSheet.create({
   gotItText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   skipBtn: { paddingVertical: 8, alignItems: "center" },
   skipText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#8B9EC5" },
+  cardNew: {
+    borderColor: "#F9731640",
+    backgroundColor: "#1A1000",
+  },
+  newBadge: {
+    position: "absolute", top: 8, right: 8,
+    backgroundColor: "#F97316", borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  newBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  costSection: { width: "100%", gap: 8 },
+  costCard: {
+    width: "100%", backgroundColor: "#142552", borderRadius: 14,
+    borderWidth: 1, borderColor: "#1A73E820", overflow: "hidden",
+  },
+  costRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 11,
+  },
+  costLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#8B9EC5" },
+  costValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" },
+  costTotalRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 13,
+    backgroundColor: "#1A73E815",
+    borderTopWidth: 1, borderTopColor: "#1A73E840",
+  },
+  costTotalLabel: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#1A73E8", letterSpacing: 0.5 },
+  costTotalValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1A73E8" },
   liveSection: { width: "100%", gap: 8 },
   liveCard: {
     width: "100%", backgroundColor: "#142552", borderRadius: 14,

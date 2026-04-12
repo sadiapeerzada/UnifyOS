@@ -409,23 +409,87 @@ export default function AlertsScreen() {
     }
   }
 
+  function buildExportJSON() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      platform: "UnifyOS",
+      team: "Team BlackBit",
+      competition: "Google Solution Challenge 2026",
+      device: { name: deviceName, location: deviceLocation },
+      summary: {
+        total: alerts.length,
+        critical: alerts.filter(a => a.severity === "CRITICAL").length,
+        high: alerts.filter(a => a.severity === "HIGH").length,
+        medium: alerts.filter(a => a.severity === "MEDIUM").length,
+        normal: alerts.filter(a => a.severity === "NORMAL").length,
+      },
+      hardware: {
+        model: "UnifyOS-001",
+        sensors: ["MQ-2 (Smoke)", "DHT22 (Temp/Humidity)", "PIR (Motion)", "Panic Button", "Flame Sensor (IR)"],
+        cost: "₹1,220",
+        connectivity: "WiFi (ESP32)",
+        battery: "18650 Li-Ion",
+      },
+      alerts: alerts.slice(0, 200).map(a => ({
+        id: a.id,
+        severity: a.severity,
+        confidence: a.confidence,
+        location: a.deviceLocation,
+        message: a.message,
+        triggeredSensors: a.triggeredSensors,
+        aiSummary: a.aiSummary,
+        aiAction: a.aiAction,
+        createdAt: a.createdAt,
+        dismissed: a.dismissed,
+      })),
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  async function handleExportJSON() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    console.log("📦 [UnifyOS] Generating JSON export...", { alertCount: alerts.length });
+    try {
+      const json = buildExportJSON();
+      const filename = `unifyos_alerts_${Date.now()}.json`;
+      if (Platform.OS === "web") {
+        await Share.share({ message: json, title: "UnifyOS JSON Export" });
+        return;
+      }
+      const path = `${FileSystem.documentDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+      console.log("📦 [UnifyOS] JSON written to:", path);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(path, { mimeType: "application/json", dialogTitle: "Share JSON Export" });
+      } else {
+        Alert.alert("Saved", `JSON export saved to:\n${filename}`);
+      }
+    } catch (e) {
+      console.error("📦 [UnifyOS] JSON export error:", e);
+      Alert.alert("Error", "Could not export JSON. Try again.");
+    }
+  }
+
   async function handleExportSheet() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ["Cancel", "Export as Text Log", "Share via Share Sheet"],
+          options: ["Cancel", "Export as Text Log", "Export as JSON", "Share via Share Sheet"],
           cancelButtonIndex: 0,
         },
         (idx) => {
           if (idx === 1) handleExportText();
-          if (idx === 2) Share.share({ message: buildExportText(), title: "UnifyOS Alerts" });
+          if (idx === 2) handleExportJSON();
+          if (idx === 3) Share.share({ message: buildExportText(), title: "UnifyOS Alerts" });
         }
       );
     } else {
       Alert.alert("Export Alerts", "Choose export format", [
         { text: "Cancel", style: "cancel" },
         { text: "Export as Text Log", onPress: handleExportText },
+        { text: "Export as JSON", onPress: handleExportJSON },
         { text: "Share", onPress: () => Share.share({ message: buildExportText(), title: "UnifyOS Alerts" }) },
       ]);
     }
