@@ -44,6 +44,7 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
     if (anomaly.severity === 'HIGH' || anomaly.severity === 'CRITICAL') {
       try {
+        console.log(`🤖 [Gemini] Calling triage for ${anomaly.severity} at "${anomaly.location}" (${anomaly.confidence}% confidence)...`);
         const ai = await generateIncidentSummary({
           location: anomaly.location,
           severity: anomaly.severity,
@@ -59,7 +60,10 @@ router.post('/sensor-data', openCors, async (req, res) => {
         aiSummary = ai.summary;
         aiAction = ai.immediateAction;
         aiEstimatedCause = ai.estimatedCause;
-      } catch {}
+        console.log(`✅ [Gemini] Triage complete — "${aiSummary?.slice(0, 80)}"`);
+      } catch (err: any) {
+        console.error(`❌ [Gemini] Triage failed, using rule-based fallback: ${err?.message}`);
+      }
     }
 
     if (anomaly.severity !== 'NORMAL' && anomaly.severity !== 'CALIBRATING') {

@@ -213,7 +213,7 @@ export function AlertBanner({ alert, onDismiss, onPress, compact, selectedLangua
 
               {alert.aiSummary && (
                 <View style={styles.aiSection}>
-                  <Text style={styles.aiLabel}>AI Analysis</Text>
+                  <Text style={styles.aiLabel}>🤖 AI Analysis</Text>
                   <Text style={styles.aiSummary}>{alert.aiSummary}</Text>
                   {alert.aiAction && (
                     <Text style={styles.aiAction}>⚡ {alert.aiAction}</Text>
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   aiLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.accent, letterSpacing: 0.8, textTransform: "uppercase" },
-  aiSummary: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 17 },
+  aiSummary: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 17, fontStyle: "italic" },
   aiAction: { fontSize: 12, fontFamily: "Inter_700Bold", color: Colors.text },
   notifyBtn: {
     flexDirection: "row",

@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+console.log('🤖 [Gemini] Service initialized. API key:', process.env.GEMINI_API_KEY ? 'Connected ✅' : 'Missing key ❌');
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 interface AlertData {
