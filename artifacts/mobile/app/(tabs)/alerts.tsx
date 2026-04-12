@@ -381,12 +381,14 @@ export default function AlertsScreen() {
             <Feather name="share" size={12} color="#8BA4D4" />
             <Text style={styles.exportText}>Export</Text>
           </Pressable>
-          {alerts.length > 0 && (
-            <Pressable onPress={handleClearAll} style={styles.clearBtn}>
-              <Feather name="trash-2" size={12} color="#E53935" />
-              <Text style={styles.clearText}>Clear</Text>
-            </Pressable>
-          )}
+          <Pressable
+            onPress={alerts.length > 0 ? handleClearAll : undefined}
+            style={[styles.clearBtn, alerts.length === 0 && styles.clearBtnDisabled]}
+            accessibilityRole="button"
+          >
+            <Feather name="trash-2" size={12} color={alerts.length > 0 ? "#E53935" : "#4A5568"} />
+            <Text style={[styles.clearText, alerts.length === 0 && styles.clearTextDisabled]}>Clear</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -516,7 +518,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.criticalBorder,
   },
+  clearBtnDisabled: {
+    backgroundColor: Colors.bgCard,
+    borderColor: Colors.border,
+    opacity: 0.5,
+  },
   clearText: { fontSize: 12, color: Colors.critical, fontFamily: "Inter_500Medium" },
+  clearTextDisabled: { color: Colors.textMuted },
   langSection: {
     paddingHorizontal: 16,
     paddingTop: 10,

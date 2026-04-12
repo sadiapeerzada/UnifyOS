@@ -1,8 +1,24 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
-console.log('🤖 [Gemini] Service initialized. API key:', process.env.GEMINI_API_KEY ? 'Connected ✅' : 'Missing key ❌');
+const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+const GEMINI_BASE_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || '';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const geminiReady = !!GEMINI_API_KEY;
+
+console.log('🤖 [Gemini] Service initialized. Proxy:', GEMINI_BASE_URL ? `${GEMINI_BASE_URL.slice(0, 50)}...` : 'direct');
+console.log('🤖 [Gemini] API key:', geminiReady ? 'Connected ✅' : 'Missing ❌');
+
+const ai = new GoogleGenAI({
+  apiKey: GEMINI_API_KEY || 'placeholder',
+  ...(GEMINI_BASE_URL ? {
+    httpOptions: {
+      apiVersion: '',
+      baseUrl: GEMINI_BASE_URL,
+    },
+  } : {}),
+});
+
+const MODEL = 'gemini-2.5-flash';
 
 interface AlertData {
   location: string;
@@ -26,13 +42,14 @@ interface GeminiResult {
 export async function testGeminiConnection(): Promise<{ ok: boolean; message: string }> {
   try {
     console.log('🤖 [Gemini] Testing API connection...');
-    if (!process.env.GEMINI_API_KEY) {
-      console.error('❌ [Gemini] No API key found in environment');
-      return { ok: false, message: 'GEMINI_API_KEY not set in environment' };
+    if (!geminiReady) {
+      return { ok: false, message: 'No API key configured (set AI_INTEGRATIONS_GEMINI_API_KEY or GEMINI_API_KEY)' };
     }
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent('Reply with exactly: OK');
-    const text = result.response.text().trim();
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
+    });
+    const text = result.text?.trim() ?? '';
     console.log('✅ [Gemini] Test response:', text);
     return { ok: true, message: `Gemini responded: ${text}` };
   } catch (err: any) {
@@ -44,8 +61,7 @@ export async function testGeminiConnection(): Promise<{ ok: boolean; message: st
 export async function generateIncidentReport(venue: string, alertHistory: any[]): Promise<string> {
   console.log('🤖 [Gemini] Generating incident report for venue:', venue);
   try {
-    if (!process.env.GEMINI_API_KEY) throw new Error('No Gemini key');
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    if (!geminiReady) throw new Error('No Gemini key');
 
     const alertSummary = alertHistory.slice(0, 20).map(a =>
       `[${a.severity}] ${new Date(a.createdAt).toLocaleString()} — ${a.deviceLocation}: ${a.message} (Confidence: ${a.confidence}%)`
@@ -67,8 +83,12 @@ RECOMMENDATIONS
 Use professional emergency response language. Be specific and concise. Each section should have 2-4 sentences.`;
 
     console.log('🤖 [Gemini] Sending incident report request...');
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { maxOutputTokens: 8192 },
+    });
+    const text = result.text ?? '';
     console.log('✅ [Gemini] Incident report generated, length:', text.length);
     return text;
   } catch (err: any) {
@@ -79,8 +99,7 @@ Use professional emergency response language. Be specific and concise. Each sect
 
 export async function generateIncidentSummary(alertData: AlertData): Promise<GeminiResult> {
   try {
-    if (!process.env.GEMINI_API_KEY) throw new Error('No Gemini key');
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    if (!geminiReady) throw new Error('No Gemini key');
     console.log('🤖 [Gemini] Calling generateIncidentSummary for location:', alertData.location);
 
     const prompt = `You are an emergency response AI for UnifyOS crisis coordination platform.
@@ -112,8 +131,12 @@ Respond ONLY with this exact JSON:
   "estimatedCause": "..."
 }`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { maxOutputTokens: 8192 },
+    });
+    const text = result.text ?? '';
     console.log('✅ [Gemini] generateIncidentSummary response received');
     const clean = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
