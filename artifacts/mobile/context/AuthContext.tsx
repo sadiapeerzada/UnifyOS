@@ -215,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginForAuthWindow = useCallback(async () => {
     console.log('🔐 Auth window: initiating signInWithRedirect...');
     setIsLoading(true);
+    setAuthError(null);
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
@@ -231,11 +232,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (err?.code === 'auth/unauthorized-domain') {
         const domain = typeof window !== 'undefined' ? window.location.hostname : 'your domain';
-        throw new Error(
-          `Domain not authorized.\n\nIn Firebase Console → Authentication → Settings → Authorized Domains, add:\n"${domain}"`
+        setAuthError(
+          `Domain not authorized. In Firebase Console → Authentication → Authorized Domains, add:\n"${domain}"`
         );
+      } else {
+        setAuthError(err?.message || `Sign-in failed (${err?.code ?? 'unknown'})`);
       }
-      throw new Error(err?.message || `Sign-in error: ${err?.code}`);
     }
   }, []);
 
