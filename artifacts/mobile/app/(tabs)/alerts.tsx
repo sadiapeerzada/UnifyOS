@@ -368,27 +368,26 @@ export default function AlertsScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title}>Alert History</Text>
           <Text style={styles.subtitle}>{alerts.length} total events logged</Text>
         </View>
-        </View>
-
-      <View style={styles.buttonsRow}>
-        <Pressable onPress={handleGenerateReport} style={styles.reportBtn} disabled={generatingReport} accessibilityRole="button">
-          <Feather name="file-text" size={12} color="#1A73E8" />
-          <Text style={styles.reportText}>{generatingReport ? "…" : "Report"}</Text>
-        </Pressable>
-        <Pressable onPress={handleExportSheet} style={styles.exportBtn} accessibilityRole="button">
-          <Feather name="share" size={12} color="#8BA4D4" />
-          <Text style={styles.exportText}>Export</Text>
-        </Pressable>
-        {alerts.length > 0 && (
-          <Pressable onPress={handleClearAll} style={styles.clearBtn}>
-            <Feather name="trash-2" size={12} color="#E53935" />
-            <Text style={styles.clearText}>Clear</Text>
+        <View style={styles.headerActions}>
+          <Pressable onPress={handleGenerateReport} style={styles.reportBtn} disabled={generatingReport} accessibilityRole="button">
+            <Feather name="file-text" size={12} color="#1A73E8" />
+            <Text style={styles.reportText}>{generatingReport ? "…" : "Report"}</Text>
           </Pressable>
-        )}
+          <Pressable onPress={handleExportSheet} style={styles.exportBtn} accessibilityRole="button">
+            <Feather name="share" size={12} color="#8BA4D4" />
+            <Text style={styles.exportText}>Export</Text>
+          </Pressable>
+          {alerts.length > 0 && (
+            <Pressable onPress={handleClearAll} style={styles.clearBtn}>
+              <Feather name="trash-2" size={12} color="#E53935" />
+              <Text style={styles.clearText}>Clear</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.langSection}>

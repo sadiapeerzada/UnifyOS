@@ -227,8 +227,7 @@ export function AlertBanner({ alert, onDismiss, onPress, compact, selectedLangua
                     style={styles.notifyBtn}
                     onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowContacts(true); }}
                   >
-                    <Feather name="phone" size={14} color="#fff" />
-                    <Text style={styles.notifyBtnText}>📞 Notify Staff</Text>
+                    <Text style={styles.notifyBtnText}>Notify Staff 📞</Text>
                   </Pressable>
 
                   <View style={styles.evacuationSection}>

@@ -89,7 +89,7 @@ export default function DashboardScreen() {
       ].filter(Boolean).join("\n");
       Alert.alert("Emergency Simulated", msg, [{ text: "OK" }]);
     } catch {
-      Alert.alert("Offline", "Backend not reachable — demo data only");
+      Alert.alert("Offline", "Backend not reachable — simulated data only");
     } finally {
       setSimulating(false);
     }
@@ -130,7 +130,7 @@ export default function DashboardScreen() {
   const connDot = connectionStatus === "connected" ? Colors.normal :
                   connectionStatus === "lost" ? Colors.critical : Colors.medium;
   const connLabel = connectionStatus === "connected" ? "Hardware Connected — Live" :
-                    connectionStatus === "lost" ? "Connection Lost — Retrying..." : "Demo Mode — Simulated data";
+                    connectionStatus === "lost" ? "Connection Lost — Retrying..." : "Simulated — No hardware connected";
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -143,7 +143,7 @@ export default function DashboardScreen() {
           <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>
             <View style={[styles.liveDot, { backgroundColor: sensorData.isLive ? Colors.normal : Colors.medium }]} />
             <Text style={[styles.liveTagText, { color: sensorData.isLive ? Colors.normal : Colors.medium }]}>
-              {sensorData.isLive ? "Live" : "Demo"}
+              {sensorData.isLive ? "Live" : "Sim"}
             </Text>
           </View>
           {currentUser && !currentUser.isDemo ? (
@@ -383,15 +383,15 @@ const styles = StyleSheet.create({
   guestBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
     borderWidth: 1,
     borderColor: Colors.accent,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    borderRadius: 7,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
   },
   signInText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Inter_600SemiBold",
     color: Colors.accent,
   },
