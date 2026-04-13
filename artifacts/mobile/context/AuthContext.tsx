@@ -48,7 +48,11 @@ const GUEST_USER: AuthUser = {
 const AUTH_USER_STORAGE_KEY = 'unifyos.authUser';
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const GOOGLE_CLIENT_ID_FOR_REQUEST = GOOGLE_WEB_CLIENT_ID || 'missing-google-web-client-id.apps.googleusercontent.com';
-const redirectUri = AuthSession.makeRedirectUri({ useProxy: true } as any);
+const expoProxyRedirectUri = AuthSession.makeRedirectUri({ useProxy: true } as any);
+const redirectUri = expoProxyRedirectUri.includes('auth.expo.io')
+  ? expoProxyRedirectUri
+  : 'https://auth.expo.io/@sadiapeerzada/unifyos';
+console.log("REDIRECT URI:", redirectUri);
 
 async function saveUserToFirestore(user: any) {
   try {
@@ -105,6 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, googleResponse, promptGoogleSignIn] = Google.useAuthRequest(
     {
       expoClientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
+      clientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
+      webClientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
+      scopes: ['openid', 'profile', 'email'],
+      selectAccount: true,
       redirectUri,
     } as any
   );
