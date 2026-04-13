@@ -140,12 +140,14 @@ export default function DashboardScreen() {
           <Text style={styles.subtitle}>Monitoring: {deviceName} · {deviceLocation}</Text>
         </View>
         <View style={styles.headerRight}>
-          <View style={[styles.liveTag, { backgroundColor: sensorData.isLive ? Colors.normalBg : "rgba(234,179,8,0.15)", borderColor: sensorData.isLive ? Colors.normalBorder : "rgba(234,179,8,0.4)" }]}>
-            <View style={[styles.liveDot, { backgroundColor: sensorData.isLive ? Colors.normal : Colors.medium }]} />
-            <Text style={[styles.liveTagText, { color: sensorData.isLive ? Colors.normal : Colors.medium }]}>
-              {sensorData.isLive ? "Live" : "Sim"}
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.aboutHeaderBtn}
+            onPress={() => router.push("/(tabs)/settings")}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="information-outline" size={12} color={Colors.accent} />
+            <Text style={styles.aboutHeaderText}>About</Text>
+          </TouchableOpacity>
           {currentUser && !currentUser.isGuest ? (
             <TouchableOpacity
               style={styles.avatar}
@@ -160,7 +162,7 @@ export default function DashboardScreen() {
               onPress={() => logout()}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="logout" size={14} color={Colors.accent} />
+              <MaterialCommunityIcons name="logout" size={11} color={Colors.accent} />
               <Text style={styles.signInText}>Sign Out</Text>
             </TouchableOpacity>
           )}
@@ -377,21 +379,30 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
-  liveTag: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
-  liveDot: { width: 6, height: 6, borderRadius: 3 },
-  liveTagText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  aboutHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    backgroundColor: "rgba(79,142,247,0.08)",
+  },
+  aboutHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.accent },
   guestBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 2,
     borderWidth: 1,
     borderColor: Colors.accent,
-    borderRadius: 7,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
   },
   signInText: {
-    fontSize: 11,
+    fontSize: 9,
     fontFamily: "Inter_600SemiBold",
     color: Colors.accent,
   },
