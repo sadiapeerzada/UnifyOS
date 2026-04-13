@@ -157,11 +157,11 @@ export default function DashboardScreen() {
           ) : (
             <TouchableOpacity
               style={styles.guestBtn}
-              onPress={() => router.push('/(tabs)/')}
+              onPress={() => router.replace('/')}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="information-outline" size={14} color={Colors.accent} />
-              <Text style={styles.signInText}>About</Text>
+              <MaterialCommunityIcons name="login" size={14} color={Colors.accent} />
+              <Text style={styles.signInText}>Sign In</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -173,7 +173,7 @@ export default function DashboardScreen() {
           <Text style={styles.dropdownEmail}>{currentUser?.email}</Text>
           <TouchableOpacity
             style={styles.logoutBtn}
-            onPress={() => { setAvatarOpen(false); logout().then(() => router.replace('/(tabs)/')); }}
+            onPress={() => { setAvatarOpen(false); logout(); }}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons name="logout" size={14} color={Colors.critical} />

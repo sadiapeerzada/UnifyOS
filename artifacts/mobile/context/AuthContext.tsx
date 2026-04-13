@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   onAuthStateChanged,
@@ -195,6 +196,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await firebaseSignOut(auth);
     } catch {
       loginAsGuest();
+    } finally {
+      router.replace('/');
     }
   }, [loginAsGuest]);
 
