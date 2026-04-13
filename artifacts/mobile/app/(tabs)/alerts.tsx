@@ -122,7 +122,7 @@ export default function AlertsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGeneratingReport(true);
     try {
-      console.log("📄 Generating incident report as text...");
+      console.log("📄 Requesting AI incident report from backend...");
 
       const now = new Date();
       const reportId = `INC-${Date.now()}`;
@@ -130,86 +130,141 @@ export default function AlertsScreen() {
       const highs = alerts.filter(a => a.severity === "HIGH");
       const mediums = alerts.filter(a => a.severity === "MEDIUM");
 
-      let aiSection = "No AI summary available";
-      const topAlert = alerts.find(a => a.severity === "CRITICAL" || a.severity === "HIGH");
-      if (topAlert?.aiSummary) aiSection = topAlert.aiSummary;
+      const alertsForApi = alerts.slice(0, 30).map(a => ({
+        severity: a.severity,
+        confidence: a.confidence,
+        deviceLocation: a.deviceLocation,
+        message: a.message,
+        triggeredSensors: a.triggeredSensors,
+        aiSummary: a.aiSummary,
+        aiAction: a.aiAction,
+        createdAt: a.createdAt,
+      }));
+
+      let aiNarrative = "";
+      try {
+        const resp = await fetch(`${ENV.BACKEND_URL}/generate-incident-report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            venue: deviceLocation || "Main Facility",
+            alerts: alertsForApi,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          aiNarrative = data.content || "";
+          console.log("✅ AI narrative received, length:", aiNarrative.length);
+        } else {
+          console.warn("⚠️ Backend returned:", resp.status);
+        }
+      } catch (fetchErr: any) {
+        console.warn("⚠️ AI report API failed, using local fallback:", fetchErr?.message);
+      }
+
+      const alertTimeline = alerts.slice(0, 30).map((a, i) =>
+        `  ${String(i + 1).padStart(2, "0")}. [${a.severity.padEnd(8)}] ${new Date(a.createdAt).toLocaleString()}\n` +
+        `      Location   : ${a.deviceLocation}\n` +
+        `      Message    : ${a.message}\n` +
+        `      Confidence : ${a.confidence}%\n` +
+        `      Sensors    : ${(a.triggeredSensors || []).join(", ") || "N/A"}\n` +
+        (a.aiAction ? `      AI Action  : ${a.aiAction}\n` : "") +
+        (a.aiSummary ? `      AI Summary : ${a.aiSummary}\n` : "")
+      ).join("\n");
 
       const report = [
-        "╔══════════════════════════════════════════════════╗",
-        "║           UnifyOS — INCIDENT REPORT              ║",
-        "╚══════════════════════════════════════════════════╝",
+        "╔══════════════════════════════════════════════════════════╗",
+        "║              UnifyOS — AI INCIDENT REPORT                ║",
+        "║         Team BlackBit · Google Solution Challenge 2026   ║",
+        "╚══════════════════════════════════════════════════════════╝",
         "",
-        `Generated:   ${now.toLocaleString()}`,
-        `Incident ID: ${reportId}`,
-        `Device:      ${deviceName || "UnifyOS-001"}`,
-        `Location:    ${deviceLocation || "Main Lobby"}`,
+        `  Generated  : ${now.toLocaleString()}`,
+        `  Incident ID: ${reportId}`,
+        `  Device     : ${deviceName || "UnifyOS-001"}`,
+        `  Location   : ${deviceLocation || "Main Facility"}`,
+        `  Hardware   : ESP32 · MQ-2 · DHT22 · PIR · IR Flame · Panic Button`,
+        `  Unit Cost  : ₹1,220`,
         "",
-        "──────────────────────────────────────────────────",
-        "SUMMARY STATISTICS",
-        "──────────────────────────────────────────────────",
-        `Total Events:    ${alerts.length}`,
-        `Critical Events: ${criticals.length}`,
-        `High Events:     ${highs.length}`,
-        `Medium Events:   ${mediums.length}`,
+        "══════════════════════════════════════════════════════════",
+        "  ALERT STATISTICS",
+        "══════════════════════════════════════════════════════════",
+        `  Total Events   : ${alerts.length}`,
+        `  Critical       : ${criticals.length}  ${"█".repeat(Math.min(criticals.length, 20))}`,
+        `  High           : ${highs.length}  ${"█".repeat(Math.min(highs.length, 20))}`,
+        `  Medium         : ${mediums.length}  ${"█".repeat(Math.min(mediums.length, 20))}`,
+        `  Normal / Other : ${alerts.length - criticals.length - highs.length - mediums.length}`,
         "",
-        "──────────────────────────────────────────────────",
-        "AI ANALYSIS",
-        "──────────────────────────────────────────────────",
-        aiSection,
+        ...(aiNarrative ? [
+          "══════════════════════════════════════════════════════════",
+          "  GEMINI AI ANALYSIS",
+          "══════════════════════════════════════════════════════════",
+          ...aiNarrative.split("\n").map(l => `  ${l}`),
+          "",
+        ] : [
+          "══════════════════════════════════════════════════════════",
+          "  AI ANALYSIS",
+          "══════════════════════════════════════════════════════════",
+          "  AI analysis unavailable — sensor data below for manual review.",
+          "",
+        ]),
+        "══════════════════════════════════════════════════════════",
+        `  INCIDENT TIMELINE (${Math.min(alerts.length, 30)} most recent events)`,
+        "══════════════════════════════════════════════════════════",
         "",
-        "──────────────────────────────────────────────────",
-        "INCIDENT TIMELINE (LAST 20 EVENTS)",
-        "──────────────────────────────────────────────────",
-        ...alerts.slice(0, 20).map(a =>
-          `[${a.severity}] ${new Date(a.createdAt).toLocaleString()} — ${a.deviceLocation}\n  ${a.message} (Confidence: ${a.confidence}%)\n  Sensors: ${(a.triggeredSensors || []).join(", ") || "N/A"}`
-        ),
+        alertTimeline || "  No alert history recorded.",
         "",
-        "──────────────────────────────────────────────────",
-        "SENSOR DATA ANALYSIS",
-        "──────────────────────────────────────────────────",
-        "• Temperature monitoring: DHT22 sensors tracked ambient temperature every 2 seconds.",
-        "• Smoke detection: MQ-2 gas sensors monitored particulate density in PPM.",
-        "• Motion tracking: PIR occupancy sensors detected evacuation patterns.",
-        "• Panic buttons: Physical triggers provided manual confirmation data.",
-        "• Flame detection: IR photodetector (760–1100 nm) monitored for open flames.",
+        "══════════════════════════════════════════════════════════",
+        "  SENSOR MONITORING NOTES",
+        "══════════════════════════════════════════════════════════",
+        "  • MQ-2 Gas Sensor      : Smoke/CO detection (PPM). Threshold > 300 ppm = alert.",
+        "  • DHT22 Temp/Humidity  : Ambient temp (°C) + humidity (%). Threshold > 40°C = alert.",
+        "  • PIR Motion Sensor    : Occupancy & evacuation pattern tracking.",
+        "  • IR Flame Detector    : Spectral range 760–1100 nm for open-flame detection.",
+        "  • Panic Button         : Manual trigger with hardware debounce at 200 ms.",
+        "  • Sampling Rate        : Sensor poll every 2 seconds over WiFi (ESP32).",
         "",
-        "──────────────────────────────────────────────────",
-        "RECOMMENDED ACTIONS",
-        "──────────────────────────────────────────────────",
-        "1. Review sensor calibration schedules.",
-        "2. Conduct staff emergency response drills.",
-        "3. Update emergency contact lists.",
-        "4. Verify evacuation route signage.",
-        "5. Review threshold settings with facility management.",
+        "══════════════════════════════════════════════════════════",
+        "  STANDARD RESPONSE PROTOCOL",
+        "══════════════════════════════════════════════════════════",
+        "  CRITICAL (≥80% confidence): Immediate evacuation. Alert fire department.",
+        "  HIGH     (≥60% confidence): Evacuate affected zone. Deploy responders.",
+        "  MEDIUM   (≥40% confidence): Investigate source. Monitor readings.",
+        "  NORMAL                    : All systems within safe parameters.",
         "",
-        "──────────────────────────────────────────────────",
-        "UnifyOS · Team BlackBit · Google Solution Challenge 2026",
-        "Hardware: ESP32 · MQ-2 · DHT22 · PIR · IR Flame · Panic Button",
-        "Device cost: ₹1,220 per unit",
-        "──────────────────────────────────────────────────",
+        "══════════════════════════════════════════════════════════",
+        "  RECOMMENDED POST-INCIDENT ACTIONS",
+        "══════════════════════════════════════════════════════════",
+        "  1. Review and recalibrate sensor thresholds with facility management.",
+        "  2. Debrief emergency response staff and document lessons learned.",
+        "  3. Update emergency contact lists and evacuation route signage.",
+        "  4. Submit this report to building safety officer within 24 hours.",
+        "  5. Schedule quarterly sensor maintenance and firmware update check.",
+        "",
+        "══════════════════════════════════════════════════════════",
+        "  UnifyOS v1.0 · Team BlackBit · Google Solution Challenge 2026",
+        "  Powered by Gemini AI · ESP32 Hardware Platform",
+        "══════════════════════════════════════════════════════════",
       ].join("\n");
 
-      const fileName = `UnifyOS_Incident_Report_${Date.now()}.txt`;
+      const fileName = `UnifyOS_AI_Report_${reportId}.txt`;
 
       if (Platform.OS === "web") {
-        const blob = new Blob([report], { type: "text/plain" });
+        const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = fileName;
         anchor.click();
         URL.revokeObjectURL(url);
-        Alert.alert("Report Downloaded", `${fileName} has been saved to your Downloads folder.`);
+        Alert.alert("Report Downloaded", `${fileName} saved to your Downloads folder.`);
       } else {
         const filePath = (FileSystem.documentDirectory ?? "") + fileName;
-        await FileSystem.writeAsStringAsync(filePath, report, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        await FileSystem.writeAsStringAsync(filePath, report, { encoding: "utf8" as any });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(filePath, {
             mimeType: "text/plain",
-            dialogTitle: "Share Incident Report",
+            dialogTitle: "Share AI Incident Report",
             UTI: "public.plain-text",
           });
         } else {
@@ -217,7 +272,7 @@ export default function AlertsScreen() {
         }
       }
 
-      console.log("📄 Report generated successfully:", fileName);
+      console.log("📄 AI report generated successfully:", fileName);
     } catch (err: any) {
       console.error("❌ Report generation error:", err?.message || err);
       Alert.alert("Report Error", err?.message || "Failed to generate report.");
@@ -240,7 +295,7 @@ export default function AlertsScreen() {
         URL.revokeObjectURL(url);
       } else {
         const path = (FileSystem.documentDirectory ?? "") + `unifyos-alerts-${Date.now()}.txt`;
-        await FileSystem.writeAsStringAsync(path, content, { encoding: FileSystem.EncodingType.UTF8 });
+        await FileSystem.writeAsStringAsync(path, content, { encoding: "utf8" as any });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(path, { mimeType: "text/plain", dialogTitle: "Export Alert Log" });
@@ -301,7 +356,7 @@ export default function AlertsScreen() {
         return;
       }
       const path = `${FileSystem.documentDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+      await FileSystem.writeAsStringAsync(path, json, { encoding: "utf8" as any });
       console.log("📦 [UnifyOS] JSON written to:", path);
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {

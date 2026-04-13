@@ -67,20 +67,57 @@ export async function generateIncidentReport(venue: string, alertHistory: any[])
       `[${a.severity}] ${new Date(a.createdAt).toLocaleString()} — ${a.deviceLocation}: ${a.message} (Confidence: ${a.confidence}%)`
     ).join('\n');
 
-    const prompt = `Generate a professional incident report for venue "${venue}".
+    const totalAlerts = alertHistory.length;
+    const critical = alertHistory.filter((a: any) => a.severity === 'CRITICAL').length;
+    const high = alertHistory.filter((a: any) => a.severity === 'HIGH').length;
+    const medium = alertHistory.filter((a: any) => a.severity === 'MEDIUM').length;
+    const uniqueSensors = [...new Set(alertHistory.flatMap((a: any) => a.triggeredSensors || []))];
+    const uniqueLocations = [...new Set(alertHistory.map((a: any) => a.deviceLocation).filter(Boolean))];
 
-Alert History:
+    const prompt = `You are an expert emergency response analyst for UnifyOS, an AI-powered crisis coordination platform built for Google Solution Challenge 2026 by Team BlackBit. The hardware is an ESP32 microcontroller with MQ-2 (smoke/CO), DHT22 (temp/humidity), PIR (motion), IR flame detector, and panic button sensors.
+
+Generate a comprehensive, professional incident report for venue: "${venue}"
+
+INCIDENT STATISTICS:
+- Total alerts: ${totalAlerts}
+- Critical: ${critical}, High: ${high}, Medium: ${medium}
+- Sensors triggered: ${uniqueSensors.join(', ') || 'none recorded'}
+- Zones affected: ${uniqueLocations.join(', ') || 'unspecified'}
+
+ALERT HISTORY (chronological):
 ${alertSummary || 'No alerts recorded in this session.'}
 
-Write a formal incident report with these exact sections:
-SUMMARY
-TIMELINE
-SENSOR READINGS
-ANOMALIES DETECTED
-RESPONSE ACTIONS
-RECOMMENDATIONS
+Write a detailed professional incident report with EXACTLY these sections and headings. Each section must be thorough and specific to the data provided:
 
-Use professional emergency response language. Be specific and concise. Each section should have 2-4 sentences.`;
+EXECUTIVE SUMMARY
+(2-3 sentences: overall incident severity, timeframe, and outcome)
+
+INCIDENT CLASSIFICATION
+(severity level, incident type based on sensors, affected zones)
+
+TIMELINE ANALYSIS
+(detailed narrative of how the incident unfolded based on alert sequence)
+
+SENSOR PERFORMANCE ANALYSIS
+(which sensors fired, in what sequence, what the readings indicated, any false-positive risk)
+
+RISK ASSESSMENT
+(current threat level, probability of recurrence, affected area size estimate)
+
+RESPONSE EVALUATION
+(assessment of how quickly alerts were generated, recommended responder actions taken)
+
+ROOT CAUSE ANALYSIS
+(probable cause of the triggering event based on sensor data patterns)
+
+RECOMMENDATIONS
+(5-7 specific, actionable recommendations for this facility based on the actual incident data)
+
+COMPLIANCE NOTES
+(any regulatory or safety standard considerations — NFPA, local fire codes, building safety)
+
+Use formal emergency management language. Be specific and reference the actual sensor data and locations. Do NOT use generic filler — every sentence must be grounded in the provided data.`;
+
 
     console.log('🤖 [Gemini] Sending incident report request...');
     const result = await ai.models.generateContent({
