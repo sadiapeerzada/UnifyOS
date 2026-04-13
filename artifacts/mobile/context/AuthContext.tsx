@@ -48,7 +48,8 @@ const GUEST_USER: AuthUser = {
 const AUTH_USER_STORAGE_KEY = 'unifyos.authUser';
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const GOOGLE_CLIENT_ID_FOR_REQUEST = GOOGLE_WEB_CLIENT_ID || 'missing-google-web-client-id.apps.googleusercontent.com';
-const redirectUri = AuthSession.makeRedirectUri({ scheme: 'mobile' });
+const redirectUri = AuthSession.makeRedirectUri({ useProxy: true } as any);
+console.log("REDIRECT URI:", redirectUri);
 
 async function saveUserToFirestore(user: any) {
   try {
