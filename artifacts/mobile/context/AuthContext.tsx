@@ -105,10 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, googleResponse, promptGoogleSignIn] = Google.useAuthRequest(
     {
       expoClientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
-      clientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
-      webClientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
-      scopes: ['openid', 'profile', 'email'],
-      selectAccount: true,
       redirectUri,
     } as any
   );
