@@ -65,7 +65,7 @@ export default function HomeScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   useEffect(() => {
-    if (currentUser && !currentUser.isDemo) {
+    if (currentUser && !currentUser.isGuest) {
       router.replace("/(tabs)/dashboard");
     }
   }, [currentUser]);

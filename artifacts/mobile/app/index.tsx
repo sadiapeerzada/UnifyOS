@@ -32,7 +32,7 @@ async function navigateAfterAuth() {
 }
 
 export default function LandingScreen() {
-  const { currentUser, isLoading, authError, clearAuthError, login, loginWithEmail, continueAsGuest } = useAuth();
+  const { currentUser, isLoading, authError, clearAuthError, loginWithEmail, loginAsGuest } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,7 +41,7 @@ export default function LandingScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && currentUser && !currentUser.isDemo) {
+    if (!isLoading && currentUser && !currentUser.isGuest) {
       navigateAfterAuth();
     }
   }, [currentUser, isLoading]);
@@ -86,7 +86,7 @@ export default function LandingScreen() {
   }
 
   async function handleContinueAsGuest() {
-    continueAsGuest();
+    loginAsGuest();
     await navigateAfterAuth();
   }
 
@@ -177,21 +177,6 @@ export default function LandingScreen() {
             ) : (
               <Text style={styles.primaryBtnText}>Login</Text>
             )}
-          </TouchableOpacity>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.googleBtn}
-            onPress={login}
-            activeOpacity={0.85}
-          >
-            <MaterialCommunityIcons name="google" size={18} color="#8BA4D4" />
-            <Text style={styles.googleBtnText}>Sign in with Google</Text>
           </TouchableOpacity>
 
           <View style={styles.signupRow}>
@@ -361,37 +346,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(139,164,212,0.2)',
-  },
-  dividerText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: '#5A7AAA',
-  },
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderRadius: 14,
-    paddingVertical: 14,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(139,164,212,0.3)',
-  },
-  googleBtnText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    color: '#8BA4D4',
   },
   signupRow: {
     flexDirection: 'row',

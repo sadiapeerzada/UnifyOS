@@ -1,12 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Colors } from '@/constants/colors';
-import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
-
   return (
     <View style={styles.container}>
       <View style={styles.card}>
@@ -14,11 +12,10 @@ export default function LoginScreen() {
         <Text style={styles.title}>UnifyOS</Text>
         <Text style={styles.subtitle}>Crisis Coordination Platform</Text>
 
-        <TouchableOpacity style={styles.button} onPress={login} activeOpacity={0.85}>
-          <MaterialCommunityIcons name="google" size={20} color="#fff" />
-          <Text style={styles.buttonText}>Continue with Google</Text>
+        <TouchableOpacity style={styles.button} onPress={() => router.replace('/')} activeOpacity={0.85}>
+          <MaterialCommunityIcons name="login" size={20} color="#fff" />
+          <Text style={styles.buttonText}>Go to Login</Text>
         </TouchableOpacity>
-
       </View>
     </View>
   );

@@ -146,7 +146,7 @@ export default function DashboardScreen() {
               {sensorData.isLive ? "Live" : "Sim"}
             </Text>
           </View>
-          {currentUser && !currentUser.isDemo ? (
+          {currentUser && !currentUser.isGuest ? (
             <TouchableOpacity
               style={styles.avatar}
               onPress={() => setAvatarOpen(v => !v)}

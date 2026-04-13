@@ -16,7 +16,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginModal() {
-  const { login, loginWithEmail, authError, clearAuthError, isLoading, currentUser } = useAuth();
+  const { loginWithEmail, authError, clearAuthError, isLoading, currentUser } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +25,7 @@ export default function LoginModal() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (currentUser && !currentUser.isDemo) {
+    if (currentUser && !currentUser.isGuest) {
       router.back();
     }
   }, [currentUser]);
@@ -121,32 +121,16 @@ export default function LoginModal() {
           ) : null}
 
           <TouchableOpacity
-            style={[styles.primaryBtn, submitting && styles.btnDisabled]}
+            style={[styles.primaryBtn, (submitting || isLoading) && styles.btnDisabled]}
             onPress={handleEmailLogin}
             activeOpacity={0.85}
-            disabled={submitting}
+            disabled={submitting || isLoading}
           >
-            {submitting ? (
+            {submitting || isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text style={styles.primaryBtnText}>Login</Text>
             )}
-          </TouchableOpacity>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.googleBtn}
-            onPress={login}
-            activeOpacity={0.85}
-            disabled={isLoading}
-          >
-            <MaterialCommunityIcons name="google" size={17} color={Colors.textSecondary} />
-            <Text style={styles.googleBtnText}>Continue with Google</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
@@ -268,38 +252,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    width: '100%',
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textMuted,
-  },
-  googleBtn: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 13,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  googleBtnText: {
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
   },
   backLink: {
     marginTop: 4,

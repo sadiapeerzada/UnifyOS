@@ -1,61 +1,50 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as AuthSession from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
-  GoogleAuthProvider,
   onAuthStateChanged,
   signOut as firebaseSignOut,
-  signInWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 
-WebBrowser.maybeCompleteAuthSession();
-
 interface AuthUser {
   uid: string;
   name: string;
   email: string;
   photo?: string;
-  role: 'admin' | 'responder';
-  isDemo: boolean;
+  role: 'admin' | 'responder' | 'guest';
+  isGuest: boolean;
 }
 
 interface AuthContextValue {
   currentUser: AuthUser | null;
   userRole: string;
-  isDemo: boolean;
+  isGuest: boolean;
   isLoading: boolean;
   authError: string | null;
-  login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
+  loginAsGuest: () => void;
   logout: () => Promise<void>;
-  continueAsGuest: () => void;
   clearAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const GUEST_USER: AuthUser = {
-  uid: 'guest-001',
-  name: 'Guest User',
-  email: '',
-  role: 'admin',
-  isDemo: true,
-};
-
 const AUTH_USER_STORAGE_KEY = 'unifyos.authUser';
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-const GOOGLE_CLIENT_ID_FOR_REQUEST = GOOGLE_WEB_CLIENT_ID || 'missing-google-web-client-id.apps.googleusercontent.com';
-const expoProxyRedirectUri = AuthSession.makeRedirectUri({ useProxy: true } as any);
-const redirectUri = expoProxyRedirectUri.includes('auth.expo.io')
-  ? expoProxyRedirectUri
-  : 'https://auth.expo.io/@sadiapeerzada/unifyos';
+
+function makeGuestUser(): AuthUser {
+  const rand = Math.random().toString(36).slice(2, 9);
+  return {
+    uid: `guest_${rand}`,
+    name: 'Guest User',
+    email: '',
+    role: 'guest',
+    isGuest: true,
+  };
+}
 
 async function saveUserToFirestore(user: any) {
   try {
@@ -74,7 +63,7 @@ async function saveUserToFirestore(user: any) {
 
 async function persistAuthUser(user: AuthUser | null) {
   try {
-    if (user && !user.isDemo) {
+    if (user && !user.isGuest) {
       await AsyncStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
     } else {
       await AsyncStorage.removeItem(AUTH_USER_STORAGE_KEY);
@@ -100,7 +89,7 @@ function buildAuthUser(firebaseUser: any, role: string): AuthUser {
     email: firebaseUser.email || '',
     photo: firebaseUser.photoURL || undefined,
     role: role as 'admin' | 'responder',
-    isDemo: false,
+    isGuest: false,
   };
 }
 
@@ -121,45 +110,25 @@ function parseFirebaseAuthError(code: string): string {
       return 'Too many failed attempts. Please try again later.';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
-    case 'auth/unauthorized-domain':
-      return 'This domain is not authorized. Check Firebase Auth settings.';
     default:
       return 'Authentication failed. Please try again.';
   }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<AuthUser>(GUEST_USER);
-  const [userRole, setUserRole] = useState<'admin' | 'responder'>('admin');
+  const [currentUser, setCurrentUser] = useState<AuthUser>(makeGuestUser());
+  const [userRole, setUserRole] = useState<'admin' | 'responder' | 'guest'>('guest');
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [, googleResponse, promptGoogleSignIn] = Google.useAuthRequest(
-    {
-      expoClientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
-      clientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
-      webClientId: GOOGLE_CLIENT_ID_FOR_REQUEST,
-      scopes: ['openid', 'profile', 'email'],
-      selectAccount: true,
-      redirectUri,
-    } as any
-  );
 
   const clearAuthError = useCallback(() => setAuthError(null), []);
 
-  const continueAsGuest = useCallback(() => {
-    setCurrentUser(GUEST_USER);
-    setUserRole('admin');
+  const loginAsGuest = useCallback(() => {
+    const guest = makeGuestUser();
+    setCurrentUser(guest);
+    setUserRole('guest');
     setIsLoading(false);
     persistAuthUser(null);
-  }, []);
-
-  useEffect(() => {
-    getPersistedAuthUser().then((persistedUser) => {
-      if (persistedUser) {
-        setCurrentUser(persistedUser);
-        setUserRole(persistedUser.role);
-      }
-    });
   }, []);
 
   useEffect(() => {
@@ -185,15 +154,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const persistedUser = await getPersistedAuthUser();
         if (persistedUser) {
           setCurrentUser(persistedUser);
-          setUserRole(persistedUser.role);
+          setUserRole(persistedUser.role as 'admin' | 'responder');
           setIsLoading(false);
         } else {
-          continueAsGuest();
+          loginAsGuest();
         }
       }
     });
     return unsub;
-  }, [continueAsGuest]);
+  }, [loginAsGuest]);
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     setAuthError(null);
@@ -220,90 +189,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const completeGoogleSignIn = useCallback(async (idToken: string) => {
-    try {
-      const credential = GoogleAuthProvider.credential(idToken);
-      const result = await signInWithCredential(auth, credential);
-      await saveUserToFirestore(result.user);
-      setAuthError(null);
-    } catch (err: any) {
-      if (err?.code === 'auth/unauthorized-domain') {
-        setAuthError('This app domain is not authorized in Firebase Authentication.');
-      } else {
-        setAuthError(err?.message || 'Google sign-in failed. Please try again.');
-      }
-      continueAsGuest();
-    } finally {
-      setIsLoading(false);
-    }
-  }, [continueAsGuest]);
-
-  useEffect(() => {
-    if (!googleResponse) return;
-
-    if (googleResponse.type === 'success') {
-      const idToken = googleResponse.params?.id_token || googleResponse.authentication?.idToken;
-      if (idToken) {
-        completeGoogleSignIn(idToken);
-      } else {
-        setIsLoading(false);
-        setAuthError('Google did not return an ID token. Check your Web Client ID configuration.');
-      }
-      return;
-    }
-
-    setIsLoading(false);
-    if (googleResponse.type === 'cancel' || googleResponse.type === 'dismiss') {
-      setAuthError('Google sign-in was cancelled.');
-    } else if (googleResponse.type === 'error') {
-      setAuthError(googleResponse.error?.message || 'Google sign-in failed. Please try again.');
-    }
-  }, [completeGoogleSignIn, googleResponse]);
-
-  const login = useCallback(async () => {
-    setAuthError(null);
-
-    if (!GOOGLE_WEB_CLIENT_ID) {
-      setAuthError('Google sign-in is not configured. Use email/password instead.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await promptGoogleSignIn({ useProxy: true } as any);
-      if (result.type === 'opened') {
-        return;
-      }
-    } catch (err: any) {
-      setIsLoading(false);
-      setAuthError(err?.message || 'Unable to start Google sign-in. Please try again.');
-    }
-  }, [promptGoogleSignIn]);
-
   const logout = useCallback(async () => {
     try {
       await persistAuthUser(null);
       await firebaseSignOut(auth);
     } catch {
-      continueAsGuest();
+      loginAsGuest();
     }
-  }, [continueAsGuest]);
+  }, [loginAsGuest]);
 
-  const isDemo = currentUser.isDemo;
+  const isGuest = currentUser.isGuest;
 
   const value = useMemo<AuthContextValue>(() => ({
     currentUser,
     userRole,
-    isDemo,
+    isGuest,
     isLoading,
     authError,
-    login,
     loginWithEmail,
     signUpWithEmail,
+    loginAsGuest,
     logout,
-    continueAsGuest,
     clearAuthError,
-  }), [currentUser, userRole, isDemo, isLoading, authError, login, loginWithEmail, signUpWithEmail, logout, continueAsGuest, clearAuthError]);
+  }), [currentUser, userRole, isGuest, isLoading, authError, loginWithEmail, signUpWithEmail, loginAsGuest, logout, clearAuthError]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
