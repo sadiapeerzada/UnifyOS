@@ -41,12 +41,6 @@ export default function LandingScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && currentUser && !currentUser.isGuest) {
-      navigateAfterAuth();
-    }
-  }, [currentUser, isLoading]);
-
-  useEffect(() => {
     if (authError) setLocalError(authError);
   }, [authError]);
 
@@ -78,6 +72,7 @@ export default function LandingScreen() {
     setSubmitting(true);
     try {
       await loginWithEmail(email, password);
+      await navigateAfterAuth();
     } catch {
       // error is set in context
     } finally {
