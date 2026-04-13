@@ -6,9 +6,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   StatusBar,
-  Platform,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,56 +28,13 @@ async function navigateAfterAuth() {
 }
 
 export default function LandingScreen() {
-  const { currentUser, isLoading, authError, clearAuthError, login, continueAsGuest, loginForAuthWindow } = useAuth();
-  const params = useLocalSearchParams<{ __auth?: string }>();
-  const isAuthWindow = Platform.OS === 'web' && params.__auth === '1';
+  const { currentUser, isLoading, authError, clearAuthError, login, continueAsGuest } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && currentUser && !currentUser.isDemo && !isAuthWindow) {
+    if (!isLoading && currentUser && !currentUser.isDemo) {
       navigateAfterAuth();
     }
-  }, [currentUser, isLoading, isAuthWindow]);
-
-  useEffect(() => {
-    if (isAuthWindow) {
-      console.log('🔐 Auth window detected — auto-triggering sign-in');
-      loginForAuthWindow();
-    }
-  }, [isAuthWindow]);
-
-  if (isAuthWindow) {
-    return (
-      <View style={styles.loadingContainer}>
-        <LinearGradient colors={['#0D1B3E', '#112244', '#0A1628']} style={StyleSheet.absoluteFill} />
-        <MaterialCommunityIcons name="shield-check" size={52} color="#4F8EF7" style={{ marginBottom: 20 }} />
-        <Text style={{ color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold', marginBottom: 8 }}>UnifyOS</Text>
-        {authError ? (
-          <>
-            <MaterialCommunityIcons name="alert-circle" size={28} color="#EF4444" style={{ marginBottom: 8 }} />
-            <Text style={{ color: '#EF4444', fontSize: 13, textAlign: 'center', maxWidth: 280, marginBottom: 16 }}>
-              {authError}
-            </Text>
-            <TouchableOpacity
-              onPress={() => { clearAuthError(); loginForAuthWindow(); }}
-              style={{ backgroundColor: '#4F8EF7', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
-            >
-              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Try Again</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <ActivityIndicator size="large" color="#4F8EF7" style={{ marginBottom: 12 }} />
-            <Text style={{ color: '#8BA4D4', fontSize: 13, fontFamily: 'Inter_400Regular' }}>
-              Signing in with Google...
-            </Text>
-            <Text style={{ color: '#3D5278', fontSize: 11, marginTop: 8, textAlign: 'center', maxWidth: 260 }}>
-              A Google sign-in window will appear. Complete sign-in there.
-            </Text>
-          </>
-        )}
-      </View>
-    );
-  }
+  }, [currentUser, isLoading]);
 
   if (isLoading) {
     return (
