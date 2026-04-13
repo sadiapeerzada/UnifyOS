@@ -8,6 +8,8 @@ import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
   signInWithCredential,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
@@ -30,6 +32,8 @@ interface AuthContextValue {
   isLoading: boolean;
   authError: string | null;
   login: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   continueAsGuest: () => void;
   clearAuthError: () => void;
@@ -52,7 +56,6 @@ const expoProxyRedirectUri = AuthSession.makeRedirectUri({ useProxy: true } as a
 const redirectUri = expoProxyRedirectUri.includes('auth.expo.io')
   ? expoProxyRedirectUri
   : 'https://auth.expo.io/@sadiapeerzada/unifyos';
-console.log("REDIRECT URI:", redirectUri);
 
 async function saveUserToFirestore(user: any) {
   try {
@@ -60,7 +63,7 @@ async function saveUserToFirestore(user: any) {
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       await setDoc(userRef, {
-        name: user.displayName,
+        name: user.displayName || user.email?.split('@')[0] || 'User',
         email: user.email,
         role: 'admin',
         createdAt: new Date(),
@@ -93,12 +96,36 @@ async function getPersistedAuthUser(): Promise<AuthUser | null> {
 function buildAuthUser(firebaseUser: any, role: string): AuthUser {
   return {
     uid: firebaseUser.uid,
-    name: firebaseUser.displayName || 'User',
+    name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
     email: firebaseUser.email || '',
     photo: firebaseUser.photoURL || undefined,
     role: role as 'admin' | 'responder',
     isDemo: false,
   };
+}
+
+function parseFirebaseAuthError(code: string): string {
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-not-found':
+      return 'No account found with this email. Please sign up.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Incorrect email or password. Please try again.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists. Try logging in.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please try again later.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorized. Check Firebase Auth settings.';
+    default:
+      return 'Authentication failed. Please try again.';
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -168,19 +195,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsub;
   }, [continueAsGuest]);
 
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
+    setAuthError(null);
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch (err: any) {
+      setIsLoading(false);
+      setAuthError(parseFirebaseAuthError(err?.code || ''));
+      throw err;
+    }
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+    setAuthError(null);
+    setIsLoading(true);
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await saveUserToFirestore(result.user);
+    } catch (err: any) {
+      setIsLoading(false);
+      setAuthError(parseFirebaseAuthError(err?.code || ''));
+      throw err;
+    }
+  }, []);
+
   const completeGoogleSignIn = useCallback(async (idToken: string) => {
     try {
       const credential = GoogleAuthProvider.credential(idToken);
       const result = await signInWithCredential(auth, credential);
-      console.log('🔐 Sign-in successful for:', result.user.email);
       await saveUserToFirestore(result.user);
       setAuthError(null);
     } catch (err: any) {
-      console.log('🔐 Sign-in error:', err?.code, err?.message);
       if (err?.code === 'auth/unauthorized-domain') {
-        setAuthError('This app domain is not authorized in Firebase Authentication. Add the current Expo/Replit domain in Firebase Console.');
+        setAuthError('This app domain is not authorized in Firebase Authentication.');
       } else {
-        setAuthError(err?.message || 'Sign-in failed. Please try again.');
+        setAuthError(err?.message || 'Google sign-in failed. Please try again.');
       }
       continueAsGuest();
     } finally {
@@ -197,7 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         completeGoogleSignIn(idToken);
       } else {
         setIsLoading(false);
-        setAuthError('Google did not return an ID token. Check that your Web Client ID is configured for Expo sign-in.');
+        setAuthError('Google did not return an ID token. Check your Web Client ID configuration.');
       }
       return;
     }
@@ -206,16 +256,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (googleResponse.type === 'cancel' || googleResponse.type === 'dismiss') {
       setAuthError('Google sign-in was cancelled.');
     } else if (googleResponse.type === 'error') {
-      setAuthError(googleResponse.error?.message || googleResponse.params?.error_description || 'Google sign-in failed. Please try again.');
+      setAuthError(googleResponse.error?.message || 'Google sign-in failed. Please try again.');
     }
   }, [completeGoogleSignIn, googleResponse]);
 
   const login = useCallback(async () => {
-    console.log('🔐 Login attempt with Expo Google auth session');
     setAuthError(null);
 
     if (!GOOGLE_WEB_CLIENT_ID) {
-      setAuthError('Google sign-in is not configured yet. Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID using the Web Client ID from Google Cloud Console.');
+      setAuthError('Google sign-in is not configured. Use email/password instead.');
       return;
     }
 
@@ -226,7 +275,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
     } catch (err: any) {
-      console.log('🔐 Google auth session error:', err?.code, err?.message);
       setIsLoading(false);
       setAuthError(err?.message || 'Unable to start Google sign-in. Please try again.');
     }
@@ -250,10 +298,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     authError,
     login,
+    loginWithEmail,
+    signUpWithEmail,
     logout,
     continueAsGuest,
     clearAuthError,
-  }), [currentUser, userRole, isDemo, isLoading, authError, login, logout, continueAsGuest, clearAuthError]);
+  }), [currentUser, userRole, isDemo, isLoading, authError, login, loginWithEmail, signUpWithEmail, logout, continueAsGuest, clearAuthError]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

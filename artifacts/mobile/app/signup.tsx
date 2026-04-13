@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,49 +14,19 @@ import {
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
 
-async function navigateAfterAuth() {
-  const seen = await AsyncStorage.getItem('seen_device_intro');
-  if (!seen) {
-    router.replace('/device-intro');
-    return;
-  }
-  const configured = await AsyncStorage.getItem('device_configured');
-  if (!configured) {
-    router.replace('/device-setup');
-    return;
-  }
-  router.replace('/(tabs)/dashboard');
-}
-
-export default function LandingScreen() {
-  const { currentUser, isLoading, authError, clearAuthError, login, loginWithEmail, continueAsGuest } = useAuth();
+export default function SignUpScreen() {
+  const { signUpWithEmail, authError, clearAuthError } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && currentUser && !currentUser.isDemo) {
-      navigateAfterAuth();
-    }
-  }, [currentUser, isLoading]);
-
-  useEffect(() => {
-    if (authError) setLocalError(authError);
-  }, [authError]);
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4F8EF7" />
-      </View>
-    );
-  }
+  const [success, setSuccess] = useState(false);
 
   const errorMessage = localError || authError;
 
@@ -65,29 +35,50 @@ export default function LandingScreen() {
     clearAuthError();
   }
 
-  async function handleEmailLogin() {
+  async function handleSignUp() {
     dismissError();
+
     if (!email.trim()) {
       setLocalError('Please enter your email address.');
       return;
     }
     if (!password) {
-      setLocalError('Please enter your password.');
+      setLocalError('Please enter a password.');
       return;
     }
+    if (password.length < 6) {
+      setLocalError('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setLocalError('Passwords do not match.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await loginWithEmail(email, password);
+      await signUpWithEmail(email, password);
+      setSuccess(true);
     } catch {
-      // error is set in context
+      // error handled in context
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleContinueAsGuest() {
-    continueAsGuest();
-    await navigateAfterAuth();
+  if (success) {
+    return (
+      <View style={styles.flex}>
+        <LinearGradient colors={['#0D1B3E', '#112244', '#0A1628']} style={StyleSheet.absoluteFill} />
+        <View style={styles.successContainer}>
+          <View style={styles.successIcon}>
+            <MaterialCommunityIcons name="check-circle-outline" size={64} color="#22C55E" />
+          </View>
+          <Text style={styles.successTitle}>Account Created!</Text>
+          <Text style={styles.successSub}>You're now signed in. Welcome to UnifyOS.</Text>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -96,25 +87,27 @@ export default function LandingScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar barStyle="light-content" backgroundColor="#0D1B3E" />
-      <LinearGradient
-        colors={['#0D1B3E', '#112244', '#0A1628']}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={['#0D1B3E', '#112244', '#0A1628']} style={StyleSheet.absoluteFill} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="arrow-left" size={20} color="#8BA4D4" />
+          <Text style={styles.backText}>Back to Login</Text>
+        </TouchableOpacity>
+
         <View style={styles.logoSection}>
           <View style={styles.logoIcon}>
-            <MaterialCommunityIcons name="shield-check" size={52} color="#4F8EF7" />
+            <MaterialCommunityIcons name="shield-check" size={48} color="#4F8EF7" />
           </View>
           <Text style={styles.logoText}>UnifyOS</Text>
-          <Text style={styles.tagline}>Real-time Crisis Coordination Platform</Text>
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Sign In</Text>
+          <Text style={styles.formTitle}>Create Account</Text>
+          <Text style={styles.formSub}>Join the crisis coordination platform</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Email</Text>
@@ -140,18 +133,42 @@ export default function LandingScreen() {
               <MaterialCommunityIcons name="lock-outline" size={18} color="#5A7AAA" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, styles.inputFlex]}
-                placeholder="Enter your password"
+                placeholder="At least 6 characters"
                 placeholderTextColor="#3D5278"
                 value={password}
                 onChangeText={(t) => { setPassword(t); dismissError(); }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={handleEmailLogin}
+                returnKeyType="next"
               />
               <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
                 <MaterialCommunityIcons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color="#5A7AAA"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Confirm Password</Text>
+            <View style={styles.inputWrap}>
+              <MaterialCommunityIcons name="lock-check-outline" size={18} color="#5A7AAA" style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, styles.inputFlex]}
+                placeholder="Repeat your password"
+                placeholderTextColor="#3D5278"
+                value={confirmPassword}
+                onChangeText={(t) => { setConfirmPassword(t); dismissError(); }}
+                secureTextEntry={!showConfirm}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleSignUp}
+              />
+              <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={styles.eyeBtn}>
+                <MaterialCommunityIcons
+                  name={showConfirm ? 'eye-off-outline' : 'eye-outline'}
                   size={18}
                   color="#5A7AAA"
                 />
@@ -168,57 +185,22 @@ export default function LandingScreen() {
 
           <TouchableOpacity
             style={[styles.primaryBtn, submitting && styles.btnDisabled]}
-            onPress={handleEmailLogin}
+            onPress={handleSignUp}
             activeOpacity={0.85}
             disabled={submitting}
           >
             {submitting ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.primaryBtnText}>Login</Text>
+              <Text style={styles.primaryBtnText}>Create Account</Text>
             )}
           </TouchableOpacity>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.googleBtn}
-            onPress={login}
-            activeOpacity={0.85}
-          >
-            <MaterialCommunityIcons name="google" size={18} color="#8BA4D4" />
-            <Text style={styles.googleBtnText}>Sign in with Google</Text>
-          </TouchableOpacity>
-
-          <View style={styles.signupRow}>
-            <Text style={styles.signupPrompt}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/signup')} activeOpacity={0.8}>
-              <Text style={styles.signupLink}>Create Account</Text>
+          <View style={styles.loginRow}>
+            <Text style={styles.loginPrompt}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8}>
+              <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.guestBtn}
-          onPress={handleContinueAsGuest}
-          activeOpacity={0.85}
-        >
-          <MaterialCommunityIcons name="account-outline" size={16} color="#8BA4D4" />
-          <Text style={styles.guestBtnText}>Continue as Guest</Text>
-        </TouchableOpacity>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerLine}>Team BlackBit · Google Solution Challenge 2026</Text>
-          <View style={styles.sdgRow}>
-            {['SDG 3', 'SDG 9', 'SDG 10', 'SDG 11'].map(s => (
-              <View key={s} style={styles.sdgChip}>
-                <Text style={styles.sdgText}>{s}</Text>
-              </View>
-            ))}
           </View>
         </View>
       </ScrollView>
@@ -231,47 +213,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0D1B3E',
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#0D1B3E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 64,
+    paddingTop: 56,
     paddingBottom: 40,
-    gap: 24,
+    gap: 20,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  backText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#8BA4D4',
   },
   logoSection: {
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
   },
   logoIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 24,
+    width: 76,
+    height: 76,
+    borderRadius: 22,
     backgroundColor: 'rgba(79,142,247,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(79,142,247,0.3)',
-    marginBottom: 4,
   },
   logoText: {
-    fontSize: 38,
+    fontSize: 34,
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
     letterSpacing: -1.5,
-  },
-  tagline: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: '#8BA4D4',
-    textAlign: 'center',
   },
   formCard: {
     width: '100%',
@@ -286,6 +265,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
+  },
+  formSub: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: '#5A7AAA',
+    marginTop: -8,
     marginBottom: 4,
   },
   inputGroup: {
@@ -362,90 +347,40 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(139,164,212,0.2)',
-  },
-  dividerText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: '#5A7AAA',
-  },
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderRadius: 14,
-    paddingVertical: 14,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(139,164,212,0.3)',
-  },
-  googleBtnText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    color: '#8BA4D4',
-  },
-  signupRow: {
+  loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  signupPrompt: {
+  loginPrompt: {
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
     color: '#5A7AAA',
   },
-  signupLink: {
+  loginLink: {
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: '#4F8EF7',
   },
-  guestBtn: {
-    flexDirection: 'row',
+  successContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    padding: 32,
+    gap: 16,
   },
-  guestBtnText: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: '#5A7AAA',
+  successIcon: {
+    marginBottom: 8,
   },
-  footer: {
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
-  footerLine: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    color: '#3D5278',
-    textAlign: 'center',
-  },
-  sdgRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  sdgChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(79,142,247,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(79,142,247,0.25)',
-  },
-  sdgText: {
-    fontSize: 10,
+  successTitle: {
+    fontSize: 28,
     fontFamily: 'Inter_700Bold',
-    color: '#4F8EF7',
+    color: '#FFFFFF',
+  },
+  successSub: {
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+    color: '#8BA4D4',
+    textAlign: 'center',
   },
 });
