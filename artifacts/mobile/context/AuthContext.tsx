@@ -35,6 +35,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const AUTH_USER_STORAGE_KEY = 'unifyos.authUser';
+const AUTH_ROUTE = '/auth';
 
 function makeGuestUser(): AuthUser {
   const rand = Math.random().toString(36).slice(2, 9);
@@ -156,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(null);
         setUserRole('guest');
         setIsLoading(false);
-        router.replace('/');
+        router.replace(AUTH_ROUTE);
       }
     });
     return unsub;
@@ -193,13 +194,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(null);
       setUserRole('guest');
       setIsLoading(false);
-      router.replace('/');
+      router.replace(AUTH_ROUTE);
       await firebaseSignOut(auth);
     } catch {
       setCurrentUser(null);
       setUserRole('guest');
       setIsLoading(false);
-      router.replace('/');
+      router.replace(AUTH_ROUTE);
     }
   }, []);
 

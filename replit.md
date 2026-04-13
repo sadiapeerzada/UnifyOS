@@ -52,7 +52,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/mobile` (`@workspace/mobile`)
 
-Expo Router mobile app for UnifyOS. Authentication is handled in `context/AuthContext.tsx` with Firebase email/password auth plus an in-app guest mode. Signed-out Firebase state is represented as `currentUser: null`; the root layout redirects unauthenticated users to `/`, the existing login/create-account screen, and guards protected routes after logout.
+Expo Router mobile app for UnifyOS. Authentication is handled in `context/AuthContext.tsx` with Firebase email/password auth plus an in-app guest mode. Signed-out Firebase state is represented as `currentUser: null`; logout and the root layout redirect unauthenticated users to `/auth`, which reuses the existing login/create-account screen and avoids the tabs group's `/` route conflict.
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 

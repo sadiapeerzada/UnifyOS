@@ -100,15 +100,16 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    const publicRoutes = ["/", "/login", "/signup"];
+    const publicRoutes = ["/", "/auth", "/login", "/signup"];
     if (!isLoading && !currentUser && !publicRoutes.includes(pathname)) {
-      router.replace("/");
+      router.replace("/auth");
     }
   }, [currentUser, isLoading, pathname]);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0A0E1A" } }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="device/[id]" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="device-setup" options={{ headerShown: false, presentation: "card" }} />
