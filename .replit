@@ -28,3 +28,4 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = "537179931085-8g2te7outlqjut6rq07balems21k5vmh.apps.googleusercontent.com"
