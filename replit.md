@@ -52,7 +52,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/mobile` (`@workspace/mobile`)
 
-Expo Router mobile app for UnifyOS. Authentication is handled in `context/AuthContext.tsx` with `expo-auth-session/providers/google` and Firebase `signInWithCredential`, so Google sign-in works in Expo Go instead of relying on web popup auth. The app expects `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` to contain the Google Cloud Console Web Client ID for Expo Go testing.
+Expo Router mobile app for UnifyOS. Authentication is handled in `context/AuthContext.tsx` with Firebase email/password auth plus an in-app guest mode. Signed-out Firebase state is represented as `currentUser: null`; the root layout redirects unauthenticated users to `/`, the existing login/create-account screen, and guards protected routes after logout.
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 

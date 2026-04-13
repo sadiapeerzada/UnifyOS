@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, StyleSheet, Text, View } from "react-native";
@@ -21,6 +21,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DashboardProvider } from "@/context/DashboardContext";
 import { AuthWrapper } from "@/components/AuthWrapper";
+import { useAuth } from "@/context/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -84,6 +85,9 @@ const splashStyles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
+  const pathname = usePathname();
+  const { currentUser, isLoading } = useAuth();
+
   useEffect(() => {
     const subscription = Linking.addEventListener("url", ({ url }) => {
       const parsed = Linking.parse(url);
@@ -94,6 +98,13 @@ function RootLayoutNav() {
     });
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    const publicRoutes = ["/", "/login", "/signup"];
+    if (!isLoading && !currentUser && !publicRoutes.includes(pathname)) {
+      router.replace("/");
+    }
+  }, [currentUser, isLoading, pathname]);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0A0E1A" } }}>

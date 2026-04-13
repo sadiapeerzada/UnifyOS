@@ -117,7 +117,7 @@ function parseFirebaseAuthError(code: string): string {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<AuthUser>(makeGuestUser());
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [userRole, setUserRole] = useState<'admin' | 'responder' | 'guest'>('guest');
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -152,18 +152,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthError(null);
         setIsLoading(false);
       } else {
-        const persistedUser = await getPersistedAuthUser();
-        if (persistedUser) {
-          setCurrentUser(persistedUser);
-          setUserRole(persistedUser.role as 'admin' | 'responder');
-          setIsLoading(false);
-        } else {
-          loginAsGuest();
-        }
+        await persistAuthUser(null);
+        setCurrentUser(null);
+        setUserRole('guest');
+        setIsLoading(false);
+        router.replace('/');
       }
     });
     return unsub;
-  }, [loginAsGuest]);
+  }, []);
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     setAuthError(null);
@@ -193,15 +190,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await persistAuthUser(null);
+      setCurrentUser(null);
+      setUserRole('guest');
+      setIsLoading(false);
+      router.replace('/');
       await firebaseSignOut(auth);
     } catch {
-      loginAsGuest();
-    } finally {
+      setCurrentUser(null);
+      setUserRole('guest');
+      setIsLoading(false);
       router.replace('/');
     }
-  }, [loginAsGuest]);
+  }, []);
 
-  const isGuest = currentUser.isGuest;
+  const isGuest = currentUser?.isGuest ?? false;
 
   const value = useMemo<AuthContextValue>(() => ({
     currentUser,
