@@ -33,6 +33,16 @@ export function broadcastSensorUpdate(data: {
   aiSummary?: string;
   aiAction?: string;
   aiEstimatedCause?: string;
+  humidity?: number;
+  smokeRaw?: number;
+  flame?: boolean;
+  battery?: number;
+  firmwareConfidence?: number;
+  firmwareAlertLevel?: string;
+  firmwareAlertReason?: string;
+  crowdDensity?: 'low' | 'medium' | 'high';
+  audioAnomaly?: boolean;
+  isLive?: boolean;
   translatedMessages?: Record<string, string>;
 }) {
   if (!wss) return;

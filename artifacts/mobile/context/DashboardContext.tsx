@@ -1,12 +1,20 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import * as Speech from 'expo-speech';
+import { ENV } from "@/config/env";
 
 export interface SensorData {
   temperature: number;
   smoke: number;
   motion: number;
   button: number;
+  humidity?: number;
+  flame?: boolean;
+  battery?: number;
+  smokeRaw?: number;
+  firmwareConfidence?: number;
+  firmwareAlertLevel?: string;
+  firmwareAlertReason?: string;
 }
 
 export interface Device {
@@ -240,9 +248,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [scenario, setScenarioState] = useState("normal");
   const [tick, setTick] = useState(0);
+  const [isLive, setIsLive] = useState(false);
   const sensorDataRef = useRef<Map<string, SensorData>>(new Map());
   const anomalyRef = useRef<Map<string, AnomalyResult>>(new Map());
   const prevSensorRef = useRef<Map<string, SensorData>>(new Map());
+  const liveDataRef = useRef<Map<string, SensorData>>(new Map());
+  const liveSeverityRef = useRef<Map<string, { severity: AnomalyResult["severity"] | "CALIBRATING"; confidence: number; message: string; aiSummary?: string; aiAction?: string; aiEstimatedCause?: string; translatedMessages?: Record<string, string>; lastSeen: number }>>(new Map());
+  const lastLiveAlertIdRef = useRef<Map<string, string>>(new Map());
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const alertIdRef = useRef(1000);
   const [, forceUpdate] = useState(0);
 
@@ -294,6 +309,102 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    function connect() {
+      try {
+        const ws = new WebSocket(ENV.WS_URL);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log("[Hardware] WebSocket connected:", ENV.WS_URL);
+        };
+
+        ws.onmessage = (event) => {
+          if (cancelled) return;
+          try {
+            const msg = JSON.parse(typeof event.data === "string" ? event.data : "");
+            if (msg.type !== "sensor-update" || !msg.data) return;
+            const d = msg.data;
+            const id: string = d.deviceId || "device-001";
+            const live: SensorData = {
+              temperature: Number(d.temperature ?? 0),
+              smoke: Number(d.smoke ?? 0),
+              motion: typeof d.motion === "boolean" ? (d.motion ? 1 : 0) : Number(d.motion ?? 0),
+              button: Number(d.button ?? 0),
+              humidity: d.humidity != null ? Number(d.humidity) : undefined,
+              flame: d.flame === true || d.flame === 1,
+              battery: d.battery != null ? Number(d.battery) : undefined,
+              smokeRaw: d.smokeRaw != null ? Number(d.smokeRaw) : undefined,
+              firmwareConfidence: d.firmwareConfidence != null ? Number(d.firmwareConfidence) : undefined,
+              firmwareAlertLevel: d.firmwareAlertLevel,
+              firmwareAlertReason: d.firmwareAlertReason,
+            };
+            liveDataRef.current.set(id, live);
+            if (d.severity && d.severity !== "CALIBRATING") {
+              liveSeverityRef.current.set(id, {
+                severity: d.severity,
+                confidence: Number(d.confidence ?? 0),
+                message: d.message ?? "",
+                aiSummary: d.aiSummary,
+                aiAction: d.aiAction,
+                aiEstimatedCause: d.aiEstimatedCause,
+                translatedMessages: d.translatedMessages,
+                lastSeen: Date.now(),
+              });
+            }
+            setIsLive(true);
+            setTick(t => t + 1);
+          } catch (err) {
+            console.warn("[Hardware] Bad WS message:", err);
+          }
+        };
+
+        ws.onerror = () => {
+          console.log("[Hardware] WebSocket error — falling back to demo");
+        };
+
+        ws.onclose = () => {
+          wsRef.current = null;
+          if (!cancelled) {
+            setIsLive(false);
+            wsReconnectRef.current = setTimeout(connect, 5000);
+          }
+        };
+      } catch (err) {
+        console.warn("[Hardware] WS connect failed:", err);
+        if (!cancelled) wsReconnectRef.current = setTimeout(connect, 5000);
+      }
+    }
+
+    connect();
+
+    liveTimeoutRef.current = setInterval(() => {
+      const now = Date.now();
+      let anyFresh = false;
+      liveDataRef.current.forEach((_, id) => {
+        const sev = liveSeverityRef.current.get(id);
+        const fresh = sev ? (now - sev.lastSeen < 60000) : false;
+        if (fresh) anyFresh = true;
+      });
+      if (!anyFresh && liveDataRef.current.size > 0) {
+        liveDataRef.current.clear();
+        setIsLive(false);
+      }
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current);
+      if (liveTimeoutRef.current) clearInterval(liveTimeoutRef.current);
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch {}
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const currentDevices = BASE_DEVICES.map(d => ({
       ...d,
       id: activeDeviceId,
@@ -303,15 +414,41 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
     currentDevices.forEach(device => {
       const prev = prevSensorRef.current.get(device.id);
-      const data = generateSensorData(device.id, tick, scenario);
+      const liveData = liveDataRef.current.get(device.id);
+      const liveSev = liveSeverityRef.current.get(device.id);
+      const liveFresh = liveSev ? (Date.now() - liveSev.lastSeen < 60000) : false;
+      const data = liveData && liveFresh ? liveData : generateSensorData(device.id, tick, scenario);
       prevSensorRef.current.set(device.id, data);
       sensorDataRef.current.set(device.id, data);
 
-      const anomaly = runAnomalyDetection(data, prev ?? null);
+      let anomaly: AnomalyResult;
+      if (liveSev && liveFresh) {
+        anomaly = {
+          severity: liveSev.severity === "CALIBRATING" ? "NORMAL" : liveSev.severity,
+          confidence: liveSev.confidence,
+          anomalies: [],
+          action: liveSev.severity === "CRITICAL" ? "EVACUATE_IMMEDIATELY" :
+                  liveSev.severity === "HIGH" ? "ALERT_STAFF" :
+                  liveSev.severity === "MEDIUM" ? "MONITOR" : "NONE",
+          message: liveSev.message || "Live hardware reading",
+        };
+      } else {
+        anomaly = runAnomalyDetection(data, prev ?? null);
+      }
       anomalyRef.current.set(device.id, anomaly);
 
       if (anomaly.severity !== "NORMAL") {
         const isHighOrCritical = anomaly.severity === "CRITICAL" || anomaly.severity === "HIGH";
+        const fromLive = !!(liveSev && liveFresh);
+
+        if (fromLive) {
+          const liveKey = `${device.id}:${liveSev!.lastSeen}:${anomaly.severity}`;
+          if (lastLiveAlertIdRef.current.get(device.id) === liveKey) {
+            return;
+          }
+          lastLiveAlertIdRef.current.set(device.id, liveKey);
+        }
+
         const newAlert: Alert = {
           id: String(alertIdRef.current++),
           deviceId: device.id,
@@ -326,7 +463,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           seen: false,
           createdAt: new Date().toISOString(),
           triggeredSensors: anomaly.anomalies,
-          ...(isHighOrCritical ? { translatedMessages: DEMO_TRANSLATED_MESSAGES } : {}),
+          ...(fromLive && liveSev?.aiSummary ? { aiSummary: liveSev.aiSummary } : {}),
+          ...(fromLive && liveSev?.aiAction ? { aiAction: liveSev.aiAction } : {}),
+          ...(fromLive && liveSev?.aiEstimatedCause ? { aiEstimatedCause: liveSev.aiEstimatedCause } : {}),
+          ...(fromLive && liveSev?.translatedMessages
+            ? { translatedMessages: liveSev.translatedMessages }
+            : isHighOrCritical
+              ? { translatedMessages: DEMO_TRANSLATED_MESSAGES }
+              : {}),
         };
 
         if (anomaly.severity === "CRITICAL") {
@@ -418,13 +562,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     markAlertsSeen,
     getDeviceSensorData,
     getDeviceAnomaly,
-    isLive: true,
+    isLive,
     tick,
     deviceId: activeDeviceId,
     deviceName,
     deviceLocation,
     updateDeviceInfo,
-  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, tick, activeDeviceId, deviceName, deviceLocation, updateDeviceInfo]);
+  }), [devices, alerts, activeAlerts, scenario, setScenario, dismissAlert, dismissAllAlerts, clearAlertHistory, markAlertsSeen, getDeviceSensorData, getDeviceAnomaly, isLive, tick, activeDeviceId, deviceName, deviceLocation, updateDeviceInfo]);
 
   return (
     <DashboardContext.Provider value={value}>

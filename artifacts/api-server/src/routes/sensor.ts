@@ -31,12 +31,26 @@ router.post('/hardware/heartbeat', openCors, async (req, res) => {
 router.post('/sensor-data', openCors, async (req, res) => {
   const ts = new Date().toISOString();
   try {
-    const { temperature, smoke, motion, button, deviceId: rawDeviceId, crowd_density, audio_anomaly } = req.body;
-    const deviceId = rawDeviceId ?? 'device-001';
-    const crowdDensity: 'low' | 'medium' | 'high' | undefined = crowd_density;
-    const audioAnomaly: boolean | undefined = audio_anomaly;
+    const b = req.body ?? {};
+    const deviceId: string = b.deviceId ?? b.device_id ?? 'device-001';
+    const temperature: number = Number(b.temperature ?? b.temp ?? 0);
+    const smoke: number = Number(b.smoke ?? b.smoke_ema ?? b.smoke_raw ?? 0);
+    const smokeRaw: number | undefined = b.smoke_raw != null ? Number(b.smoke_raw) : undefined;
+    const motion: number = b.motion === true ? 1 : b.motion === false ? 0 : Number(b.motion ?? 0);
+    const flame: boolean = b.flame === true || b.flame === 1;
+    const alertType: string | undefined = b.alert_type ?? b.alertType;
+    const button: number = b.button != null
+      ? Number(b.button)
+      : (alertType === 'panic_button' || flame ? 1 : 0);
+    const humidity: number | undefined = b.humidity != null ? Number(b.humidity) : undefined;
+    const battery: number | undefined = b.battery != null ? Number(b.battery) : undefined;
+    const firmwareConfidence: number | undefined = b.confidence != null ? Number(b.confidence) : undefined;
+    const firmwareAlertLevel: string | undefined = b.alert_level ?? b.alertLevel;
+    const firmwareAlertReason: string | undefined = b.alert_reason ?? b.alertReason;
+    const crowdDensity: 'low' | 'medium' | 'high' | undefined = b.crowd_density ?? b.crowdDensity;
+    const audioAnomaly: boolean | undefined = b.audio_anomaly ?? b.audioAnomaly;
 
-    console.log(`📡 [Sensor] ${ts} | device=${deviceId} | temp=${temperature}°C | smoke=${smoke}ppm | motion=${motion} | button=${button}`);
+    console.log(`📡 [Sensor] ${ts} | device=${deviceId} | temp=${temperature}°C | hum=${humidity ?? '—'}% | smoke=${smoke}ppm | flame=${flame} | motion=${motion} | button=${button} | fwLevel=${firmwareAlertLevel ?? '—'} | fwConf=${firmwareConfidence ?? '—'}`);
 
     recordHardwarePing(deviceId);
 
@@ -130,6 +144,16 @@ router.post('/sensor-data', openCors, async (req, res) => {
       aiSummary,
       aiAction,
       aiEstimatedCause,
+      humidity,
+      smokeRaw,
+      flame,
+      battery,
+      firmwareConfidence,
+      firmwareAlertLevel,
+      firmwareAlertReason,
+      crowdDensity,
+      audioAnomaly,
+      isLive: true,
       ...(translatedMessages ? { translatedMessages } : {}),
     });
 
