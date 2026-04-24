@@ -147,7 +147,7 @@ export default function DashboardScreen() {
             accessibilityRole="button"
             accessibilityLabel="About UnifyOS"
           >
-            <MaterialCommunityIcons name="information-outline" size={14} color="#0B0B0F" />
+            <MaterialCommunityIcons name="information-outline" size={14} color="#FBBF24" />
             <Text style={styles.aboutHeaderText}>About</Text>
           </TouchableOpacity>
           {currentUser && !currentUser.isGuest ? (
@@ -164,7 +164,7 @@ export default function DashboardScreen() {
               onPress={() => logout()}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="logout" size={11} color={Colors.accent} />
+              <MaterialCommunityIcons name="logout" size={14} color={Colors.accent} />
               <Text style={styles.signInText}>Sign Out</Text>
             </TouchableOpacity>
           )}
@@ -510,25 +510,25 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: "#F59E0B",
+    borderColor: "#FBBF24",
     paddingHorizontal: 12,
     paddingVertical: 7,
-    backgroundColor: "#FBBF24",
+    backgroundColor: "transparent",
   },
-  aboutHeaderText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#0B0B0F" },
+  aboutHeaderText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FBBF24" },
   guestBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    borderWidth: 1,
+    gap: 6,
+    borderWidth: 1.5,
     borderColor: Colors.accent,
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 3,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   signInText: {
-    fontSize: 9,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
     color: Colors.accent,
   },
   avatar: {
