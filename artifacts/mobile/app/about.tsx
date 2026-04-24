@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Line, Text as SvgText } from "react-native-svg";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { ENV } from "@/config/env";
@@ -122,6 +123,7 @@ export default function AboutScreen() {
         </Section>
 
         <Section tag="SENSORS" title="5 Sensor Inputs">
+          <SensorHubDiagram />
           <SensorCard
             icon="thermometer"
             color={Colors.temp}
@@ -152,6 +154,14 @@ export default function AboutScreen() {
             title="Flame Detection"
             desc="Infrared flame sensor provides direct fire detection at up to 1 m range. Triggers instantly on open flame presence — independent of smoke or temperature thresholds."
           />
+        </Section>
+
+        <Section tag="DATA PIPELINE" title="System Flow">
+          <Text style={styles.body}>
+            From the moment a sensor reads a value to the moment your phone shows an alert —
+            here is exactly what happens, every 2 seconds.
+          </Text>
+          <SystemFlowDiagram />
         </Section>
 
         <Section tag="DETECTION ENGINE" title="How It Works">
@@ -209,6 +219,8 @@ export default function AboutScreen() {
             Every alert is assigned a confidence score (0–100%) based on which sensors are
             triggering and how strongly:
           </Text>
+
+          <ConfidenceGradient />
 
           <View style={styles.infoCard}>
             <ScoreRow label="Temperature > 45°C" score="+30%" />
@@ -397,6 +409,168 @@ function TechCard({
       <MaterialCommunityIcons name={icon} size={22} color={Colors.accentLight} />
       <Text style={styles.techTitle}>{title}</Text>
       <Text style={styles.techSub}>{sub}</Text>
+    </View>
+  );
+}
+
+function SensorHubDiagram() {
+  const W = 320;
+  const H = 220;
+  const cx = W / 2;
+  const cy = H / 2;
+  const radius = 78;
+  const sensors = [
+    { angle: -90, label: "TEMP", icon: "thermometer", color: Colors.temp },
+    { angle: -18, label: "SMOKE", icon: "smoke", color: Colors.smoke },
+    { angle: 54, label: "PANIC", icon: "alert-decagram", color: Colors.critical },
+    { angle: 126, label: "FLAME", icon: "fire", color: Colors.high },
+    { angle: 198, label: "MOTION", icon: "run-fast", color: Colors.motion },
+  ];
+
+  return (
+    <View style={styles.hubCard}>
+      <View style={{ width: W, height: H, alignSelf: "center", position: "relative" }}>
+        <Svg width={W} height={H}>
+          {sensors.map((s, i) => {
+            const rad = (s.angle * Math.PI) / 180;
+            const x = cx + Math.cos(rad) * radius;
+            const y = cy + Math.sin(rad) * radius;
+            return (
+              <Line
+                key={`l${i}`}
+                x1={cx}
+                y1={cy}
+                x2={x}
+                y2={y}
+                stroke={s.color}
+                strokeWidth={1.5}
+                strokeOpacity={0.5}
+                strokeDasharray="3,3"
+              />
+            );
+          })}
+          <Circle cx={cx} cy={cy} r={36} fill={Colors.bgCardElevated} stroke={Colors.accentLight} strokeWidth={1.5} />
+          <SvgText
+            x={cx}
+            y={cy - 2}
+            fill={Colors.accentLight}
+            fontSize={11}
+            fontWeight="bold"
+            textAnchor="middle"
+          >
+            ESP32
+          </SvgText>
+          <SvgText
+            x={cx}
+            y={cy + 12}
+            fill={Colors.textMuted}
+            fontSize={8}
+            textAnchor="middle"
+          >
+            HUB
+          </SvgText>
+        </Svg>
+        {sensors.map((s, i) => {
+          const rad = (s.angle * Math.PI) / 180;
+          const x = cx + Math.cos(rad) * radius - 26;
+          const y = cy + Math.sin(rad) * radius - 26;
+          return (
+            <View
+              key={`n${i}`}
+              style={[
+                styles.hubNode,
+                { left: x, top: y, borderColor: s.color, backgroundColor: s.color + "18" },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={s.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                size={18}
+                color={s.color}
+              />
+              <Text style={[styles.hubLabel, { color: s.color }]}>{s.label}</Text>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={styles.hubCaption}>5 sensors → 1 ESP32 hub → cloud API</Text>
+    </View>
+  );
+}
+
+function SystemFlowDiagram() {
+  const steps = [
+    { icon: "chip", color: Colors.accentLight, title: "Hardware", sub: "ESP32 + 5 sensors read every 2s" },
+    { icon: "cloud-upload", color: Colors.smoke, title: "Cloud API", sub: "POST /api/sensor-data over HTTPS" },
+    { icon: "brain", color: Colors.high, title: "Anomaly Engine", sub: "Calibrates baseline · scores 0–100%" },
+    { icon: "robot-happy", color: "#10B981", title: "Gemini AI", sub: "Generates summary + recommended action" },
+    { icon: "cellphone-message", color: Colors.critical, title: "Mobile Alert", sub: "Real-time push via WebSocket · ~1s end-to-end" },
+  ];
+
+  return (
+    <View style={styles.flowWrap}>
+      {steps.map((s, i) => (
+        <React.Fragment key={s.title}>
+          <View style={[styles.flowStep, { borderColor: s.color + "55" }]}>
+            <View style={[styles.flowIcon, { backgroundColor: s.color + "22", borderColor: s.color + "66" }]}>
+              <MaterialCommunityIcons
+                name={s.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                size={20}
+                color={s.color}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.flowTitle}>{s.title}</Text>
+              <Text style={styles.flowSub}>{s.sub}</Text>
+            </View>
+            <Text style={[styles.flowNum, { color: s.color }]}>{i + 1}</Text>
+          </View>
+          {i < steps.length - 1 && (
+            <View style={styles.flowArrowWrap}>
+              <View style={styles.flowArrowLine} />
+              <MaterialCommunityIcons name="chevron-down" size={16} color={Colors.textMuted} />
+            </View>
+          )}
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}
+
+function ConfidenceGradient() {
+  const bands = [
+    { label: "NORMAL", range: "0–19%", color: Colors.normal, flex: 20 },
+    { label: "MEDIUM", range: "20–49%", color: Colors.medium, flex: 30 },
+    { label: "HIGH", range: "50–79%", color: Colors.high, flex: 30 },
+    { label: "CRITICAL", range: "80–100%", color: Colors.critical, flex: 20 },
+  ];
+  return (
+    <View style={styles.gradientWrap}>
+      <View style={styles.gradientBar}>
+        {bands.map((b, i) => (
+          <View
+            key={b.label}
+            style={[
+              styles.gradientSeg,
+              {
+                flex: b.flex,
+                backgroundColor: b.color,
+                borderTopLeftRadius: i === 0 ? 6 : 0,
+                borderBottomLeftRadius: i === 0 ? 6 : 0,
+                borderTopRightRadius: i === bands.length - 1 ? 6 : 0,
+                borderBottomRightRadius: i === bands.length - 1 ? 6 : 0,
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.gradientLabels}>
+        {bands.map(b => (
+          <View key={b.label} style={[styles.gradientLabelGroup, { flex: b.flex }]}>
+            <Text style={[styles.gradientLabel, { color: b.color }]}>{b.label}</Text>
+            <Text style={styles.gradientRange}>{b.range}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -594,6 +768,72 @@ const styles = StyleSheet.create({
   exampleTitle: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.text },
   exampleSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
   exampleScore: { fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  hubCard: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    gap: 8,
+  },
+  hubNode: {
+    position: "absolute",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+  },
+  hubLabel: { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 0.4 },
+  hubCaption: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textMuted,
+    textAlign: "center",
+    marginTop: 4,
+  },
+
+  flowWrap: { gap: 0, marginTop: 4 },
+  flowStep: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: Colors.bgCard,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  flowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flowTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: Colors.text },
+  flowSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
+  flowNum: { fontSize: 18, fontFamily: "Inter_700Bold", opacity: 0.7 },
+  flowArrowWrap: { alignItems: "center", paddingVertical: 2 },
+  flowArrowLine: { width: 1, height: 8, backgroundColor: Colors.border },
+
+  gradientWrap: { gap: 6, marginVertical: 6 },
+  gradientBar: {
+    flexDirection: "row",
+    height: 14,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  gradientSeg: { height: "100%" },
+  gradientLabels: { flexDirection: "row" },
+  gradientLabelGroup: { alignItems: "center", gap: 1 },
+  gradientLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.4 },
+  gradientRange: { fontSize: 9, fontFamily: "Inter_400Regular", color: Colors.textMuted },
 
   techGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   techCard: {
