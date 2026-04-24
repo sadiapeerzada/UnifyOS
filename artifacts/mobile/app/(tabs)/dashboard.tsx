@@ -147,7 +147,7 @@ export default function DashboardScreen() {
             accessibilityRole="button"
             accessibilityLabel="About UnifyOS"
           >
-            <MaterialCommunityIcons name="information-outline" size={12} color={Colors.textSecondary} />
+            <MaterialCommunityIcons name="information-outline" size={12} color="#0B0B0F" />
             <Text style={styles.aboutHeaderText}>About</Text>
           </TouchableOpacity>
           {currentUser && !currentUser.isGuest ? (
@@ -510,12 +510,12 @@ const styles = StyleSheet.create({
     gap: 4,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    backgroundColor: Colors.bgCardElevated,
+    borderColor: "#F59E0B",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: "#FBBF24",
   },
-  aboutHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
+  aboutHeaderText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#0B0B0F" },
   guestBtn: {
     flexDirection: "row",
     alignItems: "center",
