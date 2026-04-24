@@ -40,22 +40,22 @@ export default function AboutScreen() {
       >
         <View style={styles.brandCard}>
           <LinearGradient
-            colors={["#1E3A8A", "#1E40AF", "#0F172A"]}
+            colors={["#1A2236", "#111827", "#0A0E1A"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.brandOrbits} pointerEvents="none">
             <Svg width={260} height={260}>
-              <Circle cx={130} cy={130} r={60} stroke="#FFFFFF" strokeOpacity={0.06} strokeWidth={1} fill="none" />
-              <Circle cx={130} cy={130} r={90} stroke="#FFFFFF" strokeOpacity={0.05} strokeWidth={1} fill="none" />
-              <Circle cx={130} cy={130} r={120} stroke="#FFFFFF" strokeOpacity={0.04} strokeWidth={1} fill="none" />
+              <Circle cx={130} cy={130} r={60} stroke={Colors.accentLight} strokeOpacity={0.12} strokeWidth={1} fill="none" />
+              <Circle cx={130} cy={130} r={90} stroke={Colors.accentLight} strokeOpacity={0.08} strokeWidth={1} fill="none" />
+              <Circle cx={130} cy={130} r={120} stroke={Colors.accentLight} strokeOpacity={0.05} strokeWidth={1} fill="none" />
             </Svg>
           </View>
 
           <View style={styles.brandRow}>
             <View style={styles.brandIconNew}>
-              <MaterialCommunityIcons name="shield-check" size={26} color="#FBBF24" />
+              <MaterialCommunityIcons name="shield-check" size={24} color={Colors.accentLight} />
             </View>
             <View style={styles.brandText}>
               <Text style={styles.brandTitleNew}>UnifyOS</Text>
@@ -64,12 +64,12 @@ export default function AboutScreen() {
             <View style={[
               styles.liveChipNew,
               {
-                borderColor: isLive ? "#10B98166" : "#FFFFFF22",
-                backgroundColor: isLive ? "#10B98122" : "#FFFFFF0D",
+                borderColor: isLive ? Colors.normalBorder : Colors.border,
+                backgroundColor: isLive ? Colors.normalBg : "transparent",
               }
             ]}>
-              <View style={[styles.liveDot, { backgroundColor: isLive ? "#10B981" : "#94A3B8" }]} />
-              <Text style={[styles.liveText, { color: isLive ? "#10B981" : "#CBD5E1" }]}>
+              <View style={[styles.liveDot, { backgroundColor: isLive ? Colors.normal : Colors.textMuted }]} />
+              <Text style={[styles.liveText, { color: isLive ? Colors.normal : Colors.textMuted }]}>
                 {isLive ? "LIVE" : "OFFLINE"}
               </Text>
             </View>
@@ -87,21 +87,21 @@ export default function AboutScreen() {
               icon="access-point"
               value={`${onlineDevices}/${devices.length}`}
               label="Devices"
-              color="#10B981"
+              color={Colors.normal}
             />
             <View style={styles.heroStatDivider} />
             <HeroStat
               icon="bell-ring"
               value={`${activeAlerts.length}`}
               label="Alerts"
-              color={activeAlerts.length > 0 ? "#EF4444" : "#FBBF24"}
+              color={activeAlerts.length > 0 ? Colors.critical : Colors.medium}
             />
             <View style={styles.heroStatDivider} />
             <HeroStat
               icon="lightning-bolt"
               value="< 2s"
               label="Latency"
-              color="#A78BFA"
+              color={Colors.smoke}
             />
           </View>
 
@@ -110,9 +110,9 @@ export default function AboutScreen() {
             onPress={() => router.replace("/(tabs)/dashboard")}
             accessibilityRole="button"
           >
-            <MaterialCommunityIcons name="view-dashboard" size={18} color="#0B1220" />
+            <MaterialCommunityIcons name="view-dashboard" size={18} color="#fff" />
             <Text style={styles.ctaTextNew}>Go to Dashboard</Text>
-            <Feather name="arrow-right" size={16} color="#0B1220" />
+            <Feather name="arrow-right" size={16} color="#fff" />
           </Pressable>
         </View>
 
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   brandCard: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#FFFFFF18",
+    borderColor: Colors.border,
     padding: 18,
     gap: 14,
     overflow: "hidden",
@@ -676,22 +676,21 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: -80,
     top: -60,
-    opacity: 0.7,
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   brandIconNew: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#FBBF2422",
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: Colors.accentGlow,
     borderWidth: 1,
-    borderColor: "#FBBF2466",
+    borderColor: Colors.accentLight + "55",
     alignItems: "center",
     justifyContent: "center",
   },
   brandText: { flex: 1 },
-  brandTitleNew: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3 },
-  brandSubtitleNew: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#CBD5E1", marginTop: 2 },
+  brandTitleNew: { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.3 },
+  brandSubtitleNew: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textSecondary, marginTop: 2 },
   liveChipNew: {
     flexDirection: "row",
     alignItems: "center",
@@ -707,7 +706,7 @@ const styles = StyleSheet.create({
   heroTitleNew: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
-    color: "#FFFFFF",
+    color: Colors.text,
     lineHeight: 30,
     letterSpacing: -0.5,
     marginTop: 4,
@@ -715,16 +714,16 @@ const styles = StyleSheet.create({
   heroDescNew: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: "#E2E8F0",
+    color: Colors.textSecondary,
     lineHeight: 19,
   },
 
   heroStatsRow: {
     flexDirection: "row",
-    backgroundColor: "#00000033",
+    backgroundColor: Colors.bg + "AA",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#FFFFFF14",
+    borderColor: Colors.border,
     paddingVertical: 12,
     marginTop: 4,
   },
@@ -737,23 +736,23 @@ const styles = StyleSheet.create({
   heroStatLabel: {
     fontSize: 10,
     fontFamily: "Inter_500Medium",
-    color: "#94A3B8",
+    color: Colors.textMuted,
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
-  heroStatDivider: { width: 1, backgroundColor: "#FFFFFF12", marginVertical: 4 },
+  heroStatDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 4 },
 
   ctaBtnNew: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    backgroundColor: "#FBBF24",
+    backgroundColor: Colors.accent,
     paddingVertical: 14,
     borderRadius: 12,
     marginTop: 2,
   },
-  ctaTextNew: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#0B1220", letterSpacing: 0.2 },
+  ctaTextNew: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff", letterSpacing: 0.2 },
 
   section: { gap: 10 },
   tag: {
