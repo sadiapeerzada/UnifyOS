@@ -1,12 +1,15 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -331,10 +334,37 @@ const graphStyles = StyleSheet.create({
 
 export default function DevicesScreen() {
   const insets = useSafeAreaInsets();
-  const { devices, getDeviceSensorData, getDeviceAnomaly, alerts, deviceName, deviceLocation } = useDashboard();
+  const { devices, getDeviceSensorData, getDeviceAnomaly, alerts, deviceName, deviceLocation, updateDeviceInfo } = useDashboard();
   const { width } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo>({ setupBy: "guest", setupDate: new Date().toLocaleDateString() });
+  const [editOpen, setEditOpen] = useState(false);
+  const [draftName, setDraftName] = useState(deviceName);
+  const [draftLocation, setDraftLocation] = useState(deviceLocation);
+
+  const LOCATION_PRESETS = ["Main Lobby", "Kitchen", "Reception", "Corridor", "Server Room", "Fire Exit"];
+
+  function openEdit() {
+    Haptics.selectionAsync();
+    setDraftName(deviceName);
+    setDraftLocation(deviceLocation);
+    setEditOpen(true);
+  }
+
+  async function saveEdit() {
+    const id = device?.id || "UnifyOS-001";
+    const finalName = draftName.trim() || deviceName;
+    const finalLocation = draftLocation.trim() || deviceLocation;
+    updateDeviceInfo(id, finalName, finalLocation);
+    try {
+      await AsyncStorage.multiSet([
+        ["device_name", finalName],
+        ["device_location", finalLocation],
+      ]);
+    } catch {}
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setEditOpen(false);
+  }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -409,15 +439,24 @@ export default function DevicesScreen() {
           <View style={styles.cardTop}>
             <View style={styles.cardTopLeft}>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.deviceName}>{deviceName}</Text>
                 <View style={styles.locationRow}>
                   <Text style={styles.locationPin}>📍</Text>
-                  <Text style={styles.locationText}>{deviceLocation}</Text>
+                  <Text style={styles.locationText} numberOfLines={1}>{deviceLocation}</Text>
                 </View>
               </View>
             </View>
             <View style={styles.cardTopRight}>
+              <Pressable
+                onPress={(e) => { e.stopPropagation?.(); openEdit(); }}
+                hitSlop={10}
+                style={styles.editIconBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Edit device name and location"
+              >
+                <Feather name="edit-2" size={13} color={Colors.accentLight} />
+              </Pressable>
               <View style={[styles.batteryRow, { borderColor: batteryColor + "50" }]}>
                 <MaterialCommunityIcons name="battery-70" size={14} color={batteryColor} />
                 <Text style={[styles.batteryText, { color: batteryColor }]}>{battery}%</Text>
@@ -547,9 +586,194 @@ export default function DevicesScreen() {
           </>
         )}
       </ScrollView>
+
+      <Modal
+        visible={editOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setEditOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={editStyles.backdrop}
+        >
+          <Pressable style={editStyles.backdropPress} onPress={() => setEditOpen(false)} />
+          <View style={editStyles.sheet}>
+            <View style={editStyles.handle} />
+            <View style={editStyles.headerRow}>
+              <View style={editStyles.headerIcon}>
+                <Feather name="edit-2" size={16} color={Colors.accentLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={editStyles.title}>Edit Device</Text>
+                <Text style={editStyles.subtitle}>Update name and physical location</Text>
+              </View>
+              <Pressable onPress={() => setEditOpen(false)} hitSlop={10} style={editStyles.closeBtn}>
+                <Feather name="x" size={18} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <Text style={editStyles.label}>DEVICE NAME</Text>
+            <TextInput
+              style={editStyles.input}
+              value={draftName}
+              onChangeText={setDraftName}
+              placeholder="e.g. Main Lobby Button"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+
+            <Text style={editStyles.label}>LOCATION</Text>
+            <TextInput
+              style={editStyles.input}
+              value={draftLocation}
+              onChangeText={setDraftLocation}
+              placeholder="e.g. Main Lobby, Kitchen"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={saveEdit}
+            />
+
+            <Text style={editStyles.quickLabel}>Quick pick</Text>
+            <View style={editStyles.chipsWrap}>
+              {LOCATION_PRESETS.map(loc => {
+                const active = draftLocation.trim().toLowerCase() === loc.toLowerCase();
+                return (
+                  <Pressable
+                    key={loc}
+                    style={[editStyles.chip, active && editStyles.chipActive]}
+                    onPress={() => { Haptics.selectionAsync(); setDraftLocation(loc); }}
+                  >
+                    <Text style={[editStyles.chipText, active && editStyles.chipTextActive]}>{loc}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={editStyles.btnRow}>
+              <Pressable
+                style={[editStyles.btn, editStyles.cancelBtn]}
+                onPress={() => setEditOpen(false)}
+              >
+                <Text style={editStyles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[editStyles.btn, editStyles.saveBtn, (!draftName.trim() && !draftLocation.trim()) && editStyles.saveBtnDisabled]}
+                onPress={saveEdit}
+                disabled={!draftName.trim() && !draftLocation.trim()}
+              >
+                <Feather name="check" size={16} color="#fff" />
+                <Text style={editStyles.saveText}>Save Changes</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
+
+const editStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "flex-end",
+  },
+  backdropPress: { ...StyleSheet.absoluteFillObject },
+  sheet: {
+    backgroundColor: Colors.bgCard,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: Colors.border,
+    padding: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    gap: 12,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: "center",
+    marginBottom: 6,
+  },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
+  headerIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.accentGlow,
+    borderWidth: 1, borderColor: Colors.accentLight + "55",
+    alignItems: "center", justifyContent: "center",
+  },
+  title: { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.text, letterSpacing: -0.3 },
+  subtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 1 },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: Colors.bgCardElevated,
+    alignItems: "center", justifyContent: "center",
+  },
+  label: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  input: {
+    backgroundColor: Colors.bgCardElevated,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+  },
+  quickLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bgCardElevated,
+  },
+  chipActive: { backgroundColor: Colors.accentGlow, borderColor: Colors.accentLight },
+  chipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  chipTextActive: { color: Colors.accentLight, fontFamily: "Inter_600SemiBold" },
+  btnRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  btn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  cancelBtn: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cancelText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
+  saveBtn: { backgroundColor: Colors.accent },
+  saveBtnDisabled: { opacity: 0.5 },
+  saveText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+});
 
 function ReadingChip({ icon, value }: { icon: string; value: string }) {
   return (
@@ -640,6 +864,16 @@ const styles = StyleSheet.create({
   locationPin: { fontSize: 11 },
   locationText: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted },
   cardTopRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  editIconBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: Colors.accentGlow,
+    borderWidth: 1,
+    borderColor: Colors.accentLight + "55",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   batteryRow: {
     flexDirection: "row",
     alignItems: "center",
