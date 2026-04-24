@@ -71,7 +71,7 @@ const BASE_DEVICES: Device[] = [
 let _motionState = true;
 let _motionLast = Date.now();
 
-function generateSensorData(deviceId: string, tick: number, scenario: string): SensorData {
+function generateScenarioSensorData(tick: number, scenario: string): SensorData | null {
   const now = Date.now();
   if (now - _motionLast >= 45000) {
     _motionState = !_motionState;
@@ -98,12 +98,7 @@ function generateSensorData(deviceId: string, tick: number, scenario: string): S
     };
   }
 
-  return {
-    temperature: 24 + Math.sin(Date.now() / 10000) * 2,
-    smoke: 120 + Math.random() * 20,
-    motion: _motionState ? 1 : 0,
-    button: 0,
-  };
+  return null;
 }
 
 function runAnomalyDetection(data: SensorData, prev: SensorData | null): AnomalyResult {
@@ -135,86 +130,6 @@ function runAnomalyDetection(data: SensorData, prev: SensorData | null): Anomaly
   return { severity: "NORMAL", confidence: 0, anomalies: [], action: "NONE", message: "All sensors normal." };
 }
 
-function buildDemoAlerts(deviceName: string, deviceLocation: string): Alert[] {
-  return [
-    {
-      id: "demo-001",
-      deviceId: "device-001",
-      deviceName,
-      deviceLocation,
-      severity: "HIGH",
-      confidence: 73,
-      anomalies: ["TEMP_ELEVATED", "SMOKE_DETECTED"],
-      message: "Elevated temperature and smoke detected",
-      action: "ALERT_STAFF",
-      dismissed: false,
-      seen: false,
-      createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-      aiSummary: "Temperature 12°C above baseline with smoke at 380ppm. Pattern consistent with early smoke accumulation. Recommend immediate investigation.",
-      aiAction: "Alert staff. Investigate now.",
-      explanation: "Temperature rose 12°C above normal baseline. Smoke levels 260ppm above normal.",
-      triggeredSensors: ["TEMP_ELEVATED", "SMOKE_DETECTED"],
-      translatedMessages: {
-        en: "High temperature and smoke detected. Please investigate immediately.",
-        hi: "उच्च तापमान और धुआं पाया गया। कृपया तुरंत जांच करें।",
-        ur: "زیادہ درجہ حرارت اور دھواں پایا گیا۔ فوری جانچ کریں۔",
-        ar: "تم اكتشاف درجة حرارة مرتفعة ودخان. يرجى التحقق فوراً.",
-        fr: "Température élevée et fumée détectées. Veuillez enquêter immédiatement.",
-      },
-    },
-    {
-      id: "demo-002",
-      deviceId: "device-001",
-      deviceName,
-      deviceLocation,
-      severity: "MEDIUM",
-      confidence: 42,
-      anomalies: ["MOTION_DETECTED"],
-      message: "Unusual motion pattern detected",
-      action: "MONITOR",
-      dismissed: false,
-      seen: false,
-      createdAt: new Date(Date.now() - 48 * 60 * 1000).toISOString(),
-      aiSummary: "Repeated motion triggers outside normal hours. Could indicate unauthorized access.",
-      aiAction: "Monitor closely. Check for false trigger.",
-      explanation: "Motion sensor triggered 8 times in 5 minutes.",
-      triggeredSensors: ["MOTION_DETECTED"],
-      translatedMessages: {
-        en: "Unusual motion detected. Please monitor the area.",
-        hi: "असामान्य गतिविधि का पता चला। कृपया क्षेत्र की निगरानी करें।",
-        ur: "غیر معمولی حرکت کا پتہ چلا۔ براہ کرم علاقے کی نگرانی کریں۔",
-        ar: "تم اكتشاف حركة غير عادية. يرجى مراقبة المنطقة.",
-        fr: "Mouvement inhabituel détecté. Veuillez surveiller la zone.",
-      },
-    },
-    {
-      id: "demo-003",
-      deviceId: "device-001",
-      deviceName,
-      deviceLocation,
-      severity: "CRITICAL",
-      confidence: 91,
-      anomalies: ["TEMP_CRITICAL", "SMOKE_DETECTED", "FIRE_CORRELATION", "PANIC_BUTTON"],
-      message: "CRITICAL — Fire pattern confirmed",
-      action: "EVACUATE_IMMEDIATELY",
-      dismissed: true,
-      seen: true,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      aiSummary: "Temperature 28°C above baseline with smoke at 750ppm. Panic button pressed. Triple sensor confirmation. Incident resolved by staff in 4 minutes.",
-      aiAction: "Evacuate immediately. Call 112.",
-      explanation: "Temperature critical at 52°C, smoke at 750ppm. Fire correlation confirmed. Staff responded in 4 minutes.",
-      triggeredSensors: ["TEMP_CRITICAL", "SMOKE_DETECTED", "FIRE_CORRELATION", "PANIC_BUTTON"],
-      translatedMessages: {
-        en: "CRITICAL EMERGENCY. Evacuate immediately. Do not use elevators.",
-        hi: "गंभीर आपातकाल। तुरंत निकासी करें। लिफ्ट का उपयोग न करें।",
-        ur: "سنگین ہنگامی صورتحال۔ فوری طور پر نکلیں۔ لفٹ استعمال نہ کریں۔",
-        ar: "طوارئ حرجة. أخلِ الفور. لا تستخدم المصاعد.",
-        fr: "URGENCE CRITIQUE. Évacuez immédiatement. N'utilisez pas les ascenseurs.",
-      },
-    },
-  ];
-}
-
 interface DashboardContextValue {
   devices: Device[];
   alerts: Alert[];
@@ -239,6 +154,7 @@ const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 const ALERT_STORAGE_KEY = "unifyos_alert_history";
 const DEMO_ALERTS_LOADED_KEY = "unifyos_demo_alerts_loaded";
+const DEMO_ALERT_ID_PREFIX = "demo-";
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [activeDeviceId, setActiveDeviceId] = useState("device-001");
@@ -287,16 +203,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setDevices(prev => prev.map(d => d.id === "device-001" ? { ...d, id, name, location } : d));
 
       const raw = await AsyncStorage.getItem(ALERT_STORAGE_KEY);
-      const demoLoaded = await AsyncStorage.getItem(DEMO_ALERTS_LOADED_KEY);
-
       if (raw) {
-        try { setAlerts(JSON.parse(raw)); } catch {}
-      } else if (!demoLoaded) {
-        const demos = buildDemoAlerts(name, location);
-        setAlerts(demos);
-        await AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(demos));
-        await AsyncStorage.setItem(DEMO_ALERTS_LOADED_KEY, "true");
+        try {
+          const parsed: Alert[] = JSON.parse(raw);
+          const cleaned = parsed.filter(a => !String(a.id).startsWith(DEMO_ALERT_ID_PREFIX));
+          if (cleaned.length !== parsed.length) {
+            await AsyncStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(cleaned));
+          }
+          setAlerts(cleaned);
+        } catch {}
       }
+      await AsyncStorage.removeItem(DEMO_ALERTS_LOADED_KEY);
     }
     init();
   }, []);
@@ -417,7 +334,22 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const liveData = liveDataRef.current.get(device.id);
       const liveSev = liveSeverityRef.current.get(device.id);
       const liveFresh = liveSev ? (Date.now() - liveSev.lastSeen < 60000) : false;
-      const data = liveData && liveFresh ? liveData : generateSensorData(device.id, tick, scenario);
+
+      let data: SensorData | null = null;
+      if (liveData && liveFresh) {
+        data = liveData;
+      } else {
+        const scenarioData = generateScenarioSensorData(tick, scenario);
+        if (scenarioData) data = scenarioData;
+      }
+
+      if (!data) {
+        sensorDataRef.current.delete(device.id);
+        prevSensorRef.current.delete(device.id);
+        anomalyRef.current.delete(device.id);
+        return;
+      }
+
       prevSensorRef.current.set(device.id, data);
       sensorDataRef.current.set(device.id, data);
 
@@ -495,13 +427,22 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
     setDevices(currentDevices.map(d => {
       const anomaly = anomalyRef.current.get(d.id);
+      const data = sensorDataRef.current.get(d.id);
+      const liveData = liveDataRef.current.get(d.id);
+      const liveSev = liveSeverityRef.current.get(d.id);
+      const liveFresh = liveSev ? (Date.now() - liveSev.lastSeen < 60000) : false;
+      const hasRealData = !!(liveData && liveFresh);
       return {
         ...d,
         lastSeen: new Date().toISOString(),
-        status: anomaly?.severity === "CRITICAL" ? "critical" :
-                anomaly?.severity === "HIGH" ? "warning" :
-                anomaly?.severity === "MEDIUM" ? "warning" : "online",
-        sensorData: sensorDataRef.current.get(d.id),
+        status: hasRealData
+          ? (anomaly?.severity === "CRITICAL" ? "critical" :
+             anomaly?.severity === "HIGH" || anomaly?.severity === "MEDIUM" ? "warning" : "online")
+          : data
+            ? (anomaly?.severity === "CRITICAL" ? "critical" :
+               anomaly?.severity === "HIGH" || anomaly?.severity === "MEDIUM" ? "warning" : "online")
+            : "offline",
+        sensorData: data,
       };
     }));
 

@@ -142,10 +142,12 @@ export default function DashboardScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.aboutHeaderBtn}
-            onPress={() => router.push("/(tabs)/settings")}
+            onPress={() => router.push("/about")}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="About UnifyOS"
           >
-            <MaterialCommunityIcons name="information-outline" size={12} color={Colors.accent} />
+            <MaterialCommunityIcons name="information-outline" size={12} color={Colors.textSecondary} />
             <Text style={styles.aboutHeaderText}>About</Text>
           </TouchableOpacity>
           {currentUser && !currentUser.isGuest ? (
@@ -348,6 +350,18 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {!displayData && activeAlerts.length === 0 && (
+          <View style={styles.section}>
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="access-point-network-off" size={28} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>Awaiting Hardware</Text>
+              <Text style={styles.emptyDesc}>
+                No live sensor data right now. Connect your UnifyOS device, or run a scenario from Settings to preview the system.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {displayData && worstDevice && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -496,12 +510,12 @@ const styles = StyleSheet.create({
     gap: 4,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.border,
     paddingHorizontal: 7,
     paddingVertical: 4,
-    backgroundColor: "rgba(79,142,247,0.08)",
+    backgroundColor: Colors.bgCardElevated,
   },
-  aboutHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.accent },
+  aboutHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
   guestBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -612,6 +626,29 @@ const styles = StyleSheet.create({
   deviceMiniName: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.text },
   deviceMiniLoc: { fontSize: 10, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   deviceMiniTemp: { fontSize: 13, fontFamily: "Inter_700Bold", marginTop: 4 },
+  emptyCard: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    marginTop: 4,
+  },
+  emptyDesc: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textMuted,
+    textAlign: "center",
+    lineHeight: 17,
+  },
   liveTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   livePulse: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.normal },
   fwLevelTag: {
