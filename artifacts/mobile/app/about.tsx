@@ -4,13 +4,15 @@ import React from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Line, Text as SvgText } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 import { ENV } from "@/config/env";
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
-  const { isLive } = useDashboard();
+  const { isLive, devices, activeAlerts } = useDashboard();
+  const onlineDevices = devices.filter(d => d.status !== "offline").length;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -37,36 +39,80 @@ export default function AboutScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandCard}>
+          <LinearGradient
+            colors={["#1E3A8A", "#1E40AF", "#0F172A"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.brandOrbits} pointerEvents="none">
+            <Svg width={260} height={260}>
+              <Circle cx={130} cy={130} r={60} stroke="#FFFFFF" strokeOpacity={0.06} strokeWidth={1} fill="none" />
+              <Circle cx={130} cy={130} r={90} stroke="#FFFFFF" strokeOpacity={0.05} strokeWidth={1} fill="none" />
+              <Circle cx={130} cy={130} r={120} stroke="#FFFFFF" strokeOpacity={0.04} strokeWidth={1} fill="none" />
+            </Svg>
+          </View>
+
           <View style={styles.brandRow}>
-            <View style={styles.brandIcon}>
-              <MaterialCommunityIcons name="shield-check" size={24} color={Colors.accentLight} />
+            <View style={styles.brandIconNew}>
+              <MaterialCommunityIcons name="shield-check" size={26} color="#FBBF24" />
             </View>
             <View style={styles.brandText}>
-              <Text style={styles.brandTitle}>UnifyOS</Text>
-              <Text style={styles.brandSubtitle}>Crisis Coordination Platform</Text>
+              <Text style={styles.brandTitleNew}>UnifyOS</Text>
+              <Text style={styles.brandSubtitleNew}>Crisis Coordination Platform</Text>
             </View>
-            <View style={[styles.liveChip, { borderColor: isLive ? Colors.normalBorder : Colors.border, backgroundColor: isLive ? Colors.normalBg : "transparent" }]}>
-              <View style={[styles.liveDot, { backgroundColor: isLive ? Colors.normal : Colors.textMuted }]} />
-              <Text style={[styles.liveText, { color: isLive ? Colors.normal : Colors.textMuted }]}>
+            <View style={[
+              styles.liveChipNew,
+              {
+                borderColor: isLive ? "#10B98166" : "#FFFFFF22",
+                backgroundColor: isLive ? "#10B98122" : "#FFFFFF0D",
+              }
+            ]}>
+              <View style={[styles.liveDot, { backgroundColor: isLive ? "#10B981" : "#94A3B8" }]} />
+              <Text style={[styles.liveText, { color: isLive ? "#10B981" : "#CBD5E1" }]}>
                 {isLive ? "LIVE" : "OFFLINE"}
               </Text>
             </View>
           </View>
 
-          <Text style={styles.heroTitle}>Real-Time Emergency Detection & Response</Text>
-          <Text style={styles.heroDesc}>
+          <Text style={styles.heroTitleNew}>Real-Time Emergency Detection & Response</Text>
+          <Text style={styles.heroDescNew}>
             UnifyOS connects smart IoT panic buttons to a live crisis dashboard, using anomaly
             detection algorithms to identify fire, smoke, and evacuation events — and alert
             responders in seconds.
           </Text>
 
+          <View style={styles.heroStatsRow}>
+            <HeroStat
+              icon="access-point"
+              value={`${onlineDevices}/${devices.length}`}
+              label="Devices"
+              color="#10B981"
+            />
+            <View style={styles.heroStatDivider} />
+            <HeroStat
+              icon="bell-ring"
+              value={`${activeAlerts.length}`}
+              label="Alerts"
+              color={activeAlerts.length > 0 ? "#EF4444" : "#FBBF24"}
+            />
+            <View style={styles.heroStatDivider} />
+            <HeroStat
+              icon="lightning-bolt"
+              value="< 2s"
+              label="Latency"
+              color="#A78BFA"
+            />
+          </View>
+
           <Pressable
-            style={styles.ctaBtn}
+            style={({ pressed }) => [styles.ctaBtnNew, pressed && { opacity: 0.85 }]}
             onPress={() => router.replace("/(tabs)/dashboard")}
             accessibilityRole="button"
           >
-            <MaterialCommunityIcons name="view-dashboard" size={18} color="#fff" />
-            <Text style={styles.ctaText}>Go to Dashboard</Text>
+            <MaterialCommunityIcons name="view-dashboard" size={18} color="#0B1220" />
+            <Text style={styles.ctaTextNew}>Go to Dashboard</Text>
+            <Feather name="arrow-right" size={16} color="#0B1220" />
           </Pressable>
         </View>
 
@@ -413,6 +459,26 @@ function TechCard({
   );
 }
 
+function HeroStat({
+  icon,
+  value,
+  label,
+  color,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  value: string;
+  label: string;
+  color: string;
+}) {
+  return (
+    <View style={styles.heroStatBlock}>
+      <MaterialCommunityIcons name={icon} size={16} color={color} />
+      <Text style={[styles.heroStatValue, { color }]}>{value}</Text>
+      <Text style={styles.heroStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function SensorHubDiagram() {
   const W = 320;
   const H = 220;
@@ -603,49 +669,96 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, gap: 24 },
 
   brandCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: "#FFFFFF18",
     padding: 18,
     gap: 14,
+    overflow: "hidden",
+    position: "relative",
+  },
+  brandOrbits: {
+    position: "absolute",
+    right: -80,
+    top: -60,
+    opacity: 0.7,
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brandIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: Colors.accentGlow,
+  brandIconNew: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#FBBF2422",
+    borderWidth: 1,
+    borderColor: "#FBBF2466",
     alignItems: "center",
     justifyContent: "center",
   },
   brandText: { flex: 1 },
-  brandTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text },
-  brandSubtitle: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 1 },
-  liveChip: {
+  brandTitleNew: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3 },
+  brandSubtitleNew: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#CBD5E1", marginTop: 2 },
+  liveChipNew: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
   },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
 
-  heroTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.text, lineHeight: 30, letterSpacing: -0.5 },
-  heroDesc: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 19 },
-  ctaBtn: {
+  heroTitleNew: {
+    fontSize: 24,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+    lineHeight: 30,
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+  heroDescNew: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#E2E8F0",
+    lineHeight: 19,
+  },
+
+  heroStatsRow: {
+    flexDirection: "row",
+    backgroundColor: "#00000033",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFFFFF14",
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  heroStatBlock: {
+    flex: 1,
+    alignItems: "center",
+    gap: 3,
+  },
+  heroStatValue: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: -0.3 },
+  heroStatLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    color: "#94A3B8",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  heroStatDivider: { width: 1, backgroundColor: "#FFFFFF12", marginVertical: 4 },
+
+  ctaBtnNew: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    backgroundColor: Colors.accent,
+    gap: 10,
+    backgroundColor: "#FBBF24",
     paddingVertical: 14,
     borderRadius: 12,
+    marginTop: 2,
   },
-  ctaText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  ctaTextNew: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#0B1220", letterSpacing: 0.2 },
 
   section: { gap: 10 },
   tag: {
