@@ -23,7 +23,7 @@ import type { SimulateResult } from "@/services/sensorService";
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly, deviceName, deviceLocation } = useDashboard();
+  const { devices, alerts, activeAlerts, dismissAlert, dismissAllAlerts, getDeviceSensorData, getDeviceAnomaly, deviceName, deviceLocation, isLive } = useDashboard();
   const { currentUser, logout } = useAuth();
   const sensorData = useSensorData();
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -261,6 +261,93 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {isLive && displayData && (
+          displayData.humidity != null ||
+          displayData.battery != null ||
+          displayData.flame != null ||
+          displayData.firmwareConfidence != null ||
+          displayData.firmwareAlertLevel ||
+          displayData.firmwareAlertReason
+        ) && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.liveTitleRow}>
+                <View style={styles.livePulse} />
+                <Text style={styles.sectionTitle}>Live Hardware Telemetry</Text>
+              </View>
+              {displayData.firmwareAlertLevel && (
+                <Text style={[
+                  styles.fwLevelTag,
+                  displayData.firmwareAlertLevel === "CRITICAL" || displayData.firmwareAlertLevel === "DANGER"
+                    ? { color: Colors.critical, backgroundColor: Colors.criticalBg, borderColor: Colors.criticalBorder }
+                    : displayData.firmwareAlertLevel === "WARN"
+                      ? { color: Colors.medium, backgroundColor: "rgba(234,179,8,0.1)", borderColor: "rgba(234,179,8,0.4)" }
+                      : { color: Colors.normal, backgroundColor: Colors.normalBg, borderColor: Colors.normalBorder },
+                ]}>
+                  FW: {displayData.firmwareAlertLevel}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.telemetryGrid}>
+              {displayData.humidity != null && (
+                <TelemetryTile
+                  icon="water-percent"
+                  iconColor={Colors.accent}
+                  label="HUMIDITY"
+                  value={`${displayData.humidity.toFixed(0)}%`}
+                />
+              )}
+              {displayData.battery != null && (
+                <TelemetryTile
+                  icon={
+                    displayData.battery > 80 ? "battery" :
+                    displayData.battery > 50 ? "battery-70" :
+                    displayData.battery > 25 ? "battery-40" :
+                    "battery-20"
+                  }
+                  iconColor={
+                    displayData.battery > 25 ? Colors.normal :
+                    displayData.battery > 10 ? Colors.medium : Colors.critical
+                  }
+                  label="BATTERY"
+                  value={`${displayData.battery.toFixed(0)}%`}
+                />
+              )}
+              {displayData.flame != null && (
+                <TelemetryTile
+                  icon={displayData.flame ? "fire" : "fire-off"}
+                  iconColor={displayData.flame ? Colors.critical : Colors.textMuted}
+                  label="FLAME"
+                  value={displayData.flame ? "DETECTED" : "Clear"}
+                  highlight={displayData.flame}
+                />
+              )}
+              {displayData.firmwareConfidence != null && (
+                <TelemetryTile
+                  icon="brain"
+                  iconColor={
+                    displayData.firmwareConfidence >= 0.7 ? Colors.critical :
+                    displayData.firmwareConfidence >= 0.4 ? Colors.high :
+                    displayData.firmwareConfidence >= 0.15 ? Colors.medium : Colors.normal
+                  }
+                  label="FW CONFIDENCE"
+                  value={`${Math.round(displayData.firmwareConfidence * 100)}%`}
+                />
+              )}
+            </View>
+
+            {displayData.firmwareAlertReason && displayData.firmwareAlertReason !== "Nominal" && (
+              <View style={styles.fwReasonBox}>
+                <MaterialCommunityIcons name="information-outline" size={13} color={Colors.textSecondary} />
+                <Text style={styles.fwReasonText} numberOfLines={2}>
+                  {displayData.firmwareAlertReason}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {displayData && worstDevice && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -361,6 +448,30 @@ function StatChip({ label, value, color }: { label: string; value: number; color
     <View style={styles.statChip}>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function TelemetryTile({
+  icon,
+  iconColor,
+  label,
+  value,
+  highlight,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  iconColor: string;
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <View style={[styles.telemetryTile, highlight ? styles.telemetryTileHighlight : null]}>
+      <MaterialCommunityIcons name={icon} size={20} color={iconColor} />
+      <Text style={styles.telemetryLabel}>{label}</Text>
+      <Text style={[styles.telemetryValue, { color: highlight ? Colors.critical : Colors.text }]}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -501,4 +612,63 @@ const styles = StyleSheet.create({
   deviceMiniName: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.text },
   deviceMiniLoc: { fontSize: 10, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   deviceMiniTemp: { fontSize: 13, fontFamily: "Inter_700Bold", marginTop: 4 },
+  liveTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  livePulse: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.normal },
+  fwLevelTag: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  telemetryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  telemetryTile: {
+    width: "47.5%",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 4,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bgCard,
+  },
+  telemetryTileHighlight: {
+    borderColor: Colors.criticalBorder,
+    backgroundColor: Colors.criticalBg,
+  },
+  telemetryLabel: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: Colors.textMuted,
+    letterSpacing: 0.6,
+    marginTop: 2,
+  },
+  telemetryValue: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+  },
+  fwReasonBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bgCard,
+  },
+  fwReasonText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
 });
