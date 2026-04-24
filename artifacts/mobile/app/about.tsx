@@ -336,11 +336,6 @@ export default function AboutScreen() {
             Designed for facilities teams, security staff, and emergency responders who need
             real-time situational awareness during critical events.
           </Text>
-          <View style={styles.sdgList}>
-            {["SDG 3", "SDG 9", "SDG 10", "SDG 11"].map(s => (
-              <Text key={s} style={styles.sdgListItem}>{s}</Text>
-            ))}
-          </View>
           <Text style={styles.footerTeam}>Team BlackBit · Google Solution Challenge 2026</Text>
         </View>
       </ScrollView>
@@ -988,8 +983,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 4,
   },
-  sdgList: { alignItems: "center", gap: 2, marginTop: 8 },
-  sdgListItem: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
   footerTeam: {
     fontSize: 11,
     fontFamily: "Inter_400Regular",
