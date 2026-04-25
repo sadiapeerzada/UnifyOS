@@ -26,7 +26,6 @@ type Filter = "all" | "active" | "critical" | "high" | "medium";
 const LANGUAGE_FLAGS = [
   { code: "en", flag: "🇬🇧", label: "EN", name: "English" },
   { code: "hi", flag: "🇮🇳", label: "HI", name: "Hindi" },
-  { code: "ur", flag: "🇵🇰", label: "UR", name: "Urdu" },
   { code: "ar", flag: "🇸🇦", label: "AR", name: "Arabic" },
   { code: "fr", flag: "🇫🇷", label: "FR", name: "French" },
 ];
@@ -182,7 +181,7 @@ export default function AlertsScreen() {
         `  Incident ID: ${reportId}`,
         `  Device     : ${deviceName || "UnifyOS-001"}`,
         `  Location   : ${deviceLocation || "Main Facility"}`,
-        `  Hardware   : ESP32 · MQ-2 · DHT22 · PIR · IR Flame · Panic Button`,
+        `  Hardware   : ESP32 · MQ-2 · DHT22 · HC-SR04 · IR Flame · Panic Button`,
         `  Unit Cost  : ₹1,220`,
         "",
         "══════════════════════════════════════════════════════════",
@@ -218,7 +217,7 @@ export default function AlertsScreen() {
         "══════════════════════════════════════════════════════════",
         "  • MQ-2 Gas Sensor      : Smoke/CO detection (PPM). Threshold > 300 ppm = alert.",
         "  • DHT22 Temp/Humidity  : Ambient temp (°C) + humidity (%). Threshold > 40°C = alert.",
-        "  • PIR Motion Sensor    : Occupancy & evacuation pattern tracking.",
+        "  • HC-SR04 Ultrasonic   : Occupancy & evacuation pattern tracking.",
         "  • IR Flame Detector    : Spectral range 760–1100 nm for open-flame detection.",
         "  • Panic Button         : Manual trigger with hardware debounce at 200 ms.",
         "  • Sampling Rate        : Sensor poll every 2 seconds over WiFi (ESP32).",
@@ -324,7 +323,7 @@ export default function AlertsScreen() {
       },
       hardware: {
         model: "UnifyOS-001",
-        sensors: ["MQ-2 (Smoke)", "DHT22 (Temp/Humidity)", "PIR (Motion)", "Panic Button", "Flame Sensor (IR)"],
+        sensors: ["MQ-2 (Smoke)", "DHT22 (Temp/Humidity)", "HC-SR04 (Ultrasonic Motion)", "Panic Button", "Flame Sensor (IR)"],
         cost: "₹1,220",
         connectivity: "WiFi (ESP32)",
         battery: "18650 Li-Ion",

@@ -21,7 +21,7 @@ const COMPONENT_CARDS = [
   { emoji: "🔧", title: "ESP32", desc: "The brain. WiFi built-in, processes all sensor data." },
   { emoji: "💨", title: "MQ-2", desc: "Detects smoke, LPG, CO & flammable gas." },
   { emoji: "🌡️", title: "DHT22", desc: "Monitors temperature & humidity in real time." },
-  { emoji: "👁", title: "PIR", desc: "Tracks human occupancy and motion." },
+  { emoji: "👁", title: "HC-SR04", desc: "Ultrasonic sensor — tracks occupancy and proximity." },
   { emoji: "🚨", title: "Panic Button", desc: "One press — instant SOS to all staff." },
   { emoji: "🔥", title: "Flame (NEW)", desc: "Direct IR fire detection. 1m range, GPIO configurable.", isNew: true },
 ];
@@ -41,10 +41,10 @@ const COST_BREAKDOWN = [
   { label: "Misc (PCB, wires, etc.)", cost: "₹50" },
 ];
 
-function DeviceSvg({ tooltip, onPressRed, onPressPir, onPressLed }: {
+function DeviceSvg({ tooltip, onPressRed, onPressUltrasonic, onPressLed }: {
   tooltip: string | null;
   onPressRed: () => void;
-  onPressPir: () => void;
+  onPressUltrasonic: () => void;
   onPressLed: () => void;
 }) {
   return (
@@ -55,8 +55,9 @@ function DeviceSvg({ tooltip, onPressRed, onPressPir, onPressLed }: {
         {/* SOS button on top face */}
         <Circle cx="190" cy="44" r="14" fill="#E53935" />
         <SvgText x="190" y="49" textAnchor="middle" fontSize="9" fill="#fff" fontWeight="bold">SOS</SvgText>
-        {/* PIR dome on top face */}
-        <Circle cx="100" cy="44" r="8" fill="#fff" opacity={0.75} />
+        {/* HC-SR04 ultrasonic sensor (twin transducers) on top face */}
+        <Circle cx="93" cy="44" r="6" fill="#fff" opacity={0.85} stroke="#1A73E8" strokeWidth="0.6" />
+        <Circle cx="107" cy="44" r="6" fill="#fff" opacity={0.85} stroke="#1A73E8" strokeWidth="0.6" />
         {/* Ventilation slots */}
         <Line x1="128" y1="36" x2="165" y2="36" stroke="#1A73E8" strokeWidth="1.5" opacity={0.5} />
         <Line x1="128" y1="43" x2="165" y2="43" stroke="#1A73E8" strokeWidth="1.5" opacity={0.5} />
@@ -94,9 +95,9 @@ function DeviceSvg({ tooltip, onPressRed, onPressPir, onPressLed }: {
         accessibilityRole="button"
       />
       <Pressable
-        style={[svgStyles.tap, { top: 26, left: 84, width: 24, height: 24 }]}
-        onPress={onPressPir}
-        accessibilityLabel="PIR sensor info"
+        style={[svgStyles.tap, { top: 26, left: 80, width: 36, height: 24 }]}
+        onPress={onPressUltrasonic}
+        accessibilityLabel="HC-SR04 ultrasonic sensor info"
         accessibilityRole="button"
       />
       <Pressable
@@ -221,7 +222,7 @@ export default function DeviceIntroScreen() {
             <DeviceSvg
               tooltip={tooltip}
               onPressRed={() => showTooltip("🚨 Panic Button — Alerts all staff instantly")}
-              onPressPir={() => showTooltip("👁 PIR Sensor — Detects occupancy and motion")}
+              onPressUltrasonic={() => showTooltip("👁 HC-SR04 — Ultrasonic occupancy & proximity sensor")}
               onPressLed={() => showTooltip("💡 Red=Alert, Green=Safe, Blue=Help Coming")}
             />
           </Animated.View>
@@ -337,7 +338,7 @@ export default function DeviceIntroScreen() {
               </Text>
             </View>
             <View style={styles.liveRow}>
-              <Text style={styles.liveLabel}>Motion (PIR)</Text>
+              <Text style={styles.liveLabel}>Motion (HC-SR04)</Text>
               <Text style={styles.liveValue}>
                 {sensorData ? (sensorData.motion > 0 ? "Detected" : "Clear") : "—"}
               </Text>

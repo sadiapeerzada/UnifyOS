@@ -186,7 +186,7 @@ export default function AboutScreen() {
             icon="run-fast"
             color={Colors.motion}
             title="Occupancy Tracking"
-            desc="PIR motion sensors detect room occupancy in real time. Sudden evacuation patterns during a fire event are automatically flagged."
+            desc="HC-SR04 ultrasonic sensors detect room occupancy and proximity in real time. Sudden evacuation patterns during a fire event are automatically flagged."
           />
           <SensorCard
             icon="alert-decagram"

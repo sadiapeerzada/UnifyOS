@@ -74,7 +74,7 @@ export async function generateIncidentReport(venue: string, alertHistory: any[])
     const uniqueSensors = [...new Set(alertHistory.flatMap((a: any) => a.triggeredSensors || []))];
     const uniqueLocations = [...new Set(alertHistory.map((a: any) => a.deviceLocation).filter(Boolean))];
 
-    const prompt = `You are an expert emergency response analyst for UnifyOS, an AI-powered crisis coordination platform built for Google Solution Challenge 2026 by Team BlackBit. The hardware is an ESP32 microcontroller with MQ-2 (smoke/CO), DHT22 (temp/humidity), PIR (motion), IR flame detector, and panic button sensors.
+    const prompt = `You are an expert emergency response analyst for UnifyOS, an AI-powered crisis coordination platform built for Google Solution Challenge 2026 by Team BlackBit. The hardware is an ESP32 microcontroller with MQ-2 (smoke/CO), DHT22 (temp/humidity), HC-SR04 (ultrasonic motion/presence), IR flame detector, and panic button sensors.
 
 Generate a comprehensive, professional incident report for venue: "${venue}"
 

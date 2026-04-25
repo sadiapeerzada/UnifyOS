@@ -406,7 +406,6 @@ export default function SettingsScreen() {
 const LANG_OPTIONS = [
   { code: "en", flag: "🇬🇧", name: "English" },
   { code: "hi", flag: "🇮🇳", name: "Hindi" },
-  { code: "ur", flag: "🇵🇰", name: "Urdu" },
   { code: "ar", flag: "🇸🇦", name: "Arabic" },
   { code: "fr", flag: "🇫🇷", name: "French" },
 ];

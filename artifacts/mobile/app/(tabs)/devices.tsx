@@ -518,7 +518,7 @@ export default function DevicesScreen() {
               <View style={styles.infoCard}>
                 <SpecRow label="Device ID" value="device-001" />
                 <SpecRow label="Model" value="ESP32 DevKit V1" />
-                <SpecRow label="Sensors" value="MQ-2, DHT22, PIR, Button" />
+                <SpecRow label="Sensors" value="MQ-2, DHT22, HC-SR04, Button" />
                 <SpecRow label="WiFi" value="Connected" valueColor={Colors.normal} />
                 <SpecRow label="Firmware" value="v1.0.0" />
                 <SpecRow label="Setup by" value={deviceInfo.setupBy} />

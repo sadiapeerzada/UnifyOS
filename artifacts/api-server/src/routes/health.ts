@@ -43,7 +43,7 @@ router.get("/health", async (_req, res) => {
       sensors: [
         { name: "MQ-2", type: "Gas/Smoke", unit: "ppm" },
         { name: "DHT22", type: "Temperature & Humidity", unit: "°C / %" },
-        { name: "PIR", type: "Motion / Occupancy", unit: "digital" },
+        { name: "HC-SR04", type: "Motion / Occupancy (ultrasonic)", unit: "cm" },
         { name: "Panic Button", type: "Manual SOS", unit: "digital" },
         { name: "Flame Sensor (NEW)", type: "Infrared Fire Detection", unit: "digital", range: "1m", interface: "GPIO" },
       ],

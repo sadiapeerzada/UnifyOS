@@ -428,7 +428,7 @@ export default function DeviceDetailScreen() {
                 <Text style={[styles.binaryLabel, { color: sensorData.motion ? Colors.motion : Colors.textMuted }]}>
                   {sensorData.motion ? "MOTION" : "NO MOTION"}
                 </Text>
-                <Text style={styles.binarySub}>PIR Sensor</Text>
+                <Text style={styles.binarySub}>HC-SR04 Sensor</Text>
               </View>
 
               <View style={[styles.binaryCard,
