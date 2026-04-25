@@ -383,8 +383,10 @@ export default function DevicesScreen() {
     });
   }, []);
 
-  const battery = 87;
-  const batteryColor = battery > 60 ? Colors.normal : battery > 30 ? Colors.medium : Colors.critical;
+  const battery = sensorData?.battery;
+  const batteryColor = battery == null
+    ? Colors.textMuted
+    : battery > 60 ? Colors.normal : battery > 30 ? Colors.medium : Colors.critical;
 
   const statusColor = device?.status === "critical" ? Colors.critical :
     device?.status === "warning" ? Colors.high : Colors.normal;
@@ -392,16 +394,25 @@ export default function DevicesScreen() {
   const statusLabel = device?.status === "critical" ? "CRITICAL" :
     device?.status === "warning" ? "WARNING" : "ONLINE";
 
-  const tempStatus = (sensorData?.temperature ?? 24) > 45 ? "Critical" : (sensorData?.temperature ?? 24) > 35 ? "Elevated" : "Normal";
-  const smokeStatus = (sensorData?.smoke ?? 130) > 400 ? "Danger" : (sensorData?.smoke ?? 130) > 250 ? "Warning" : "Normal";
+  const tempStatus = sensorData?.temperature == null ? "—"
+    : sensorData.temperature > 45 ? "Critical"
+    : sensorData.temperature > 35 ? "Elevated" : "Normal";
+  const smokeStatus = sensorData?.smoke == null ? "—"
+    : sensorData.smoke > 400 ? "Danger"
+    : sensorData.smoke > 250 ? "Warning" : "Normal";
 
-  const tempStatusColor = tempStatus === "Critical" ? Colors.critical : tempStatus === "Elevated" ? Colors.high : Colors.normal;
-  const smokeStatusColor = smokeStatus === "Danger" ? Colors.critical : smokeStatus === "Warning" ? Colors.high : Colors.normal;
+  const tempStatusColor = tempStatus === "—" ? Colors.textMuted
+    : tempStatus === "Critical" ? Colors.critical
+    : tempStatus === "Elevated" ? Colors.high : Colors.normal;
+  const smokeStatusColor = smokeStatus === "—" ? Colors.textMuted
+    : smokeStatus === "Danger" ? Colors.critical
+    : smokeStatus === "Warning" ? Colors.high : Colors.normal;
 
-  // Rolling sensor history for sparklines (last ~20 samples)
+  // Rolling sensor history for sparklines — only real hardware samples
   const [tempHistory, setTempHistory] = useState<number[]>([]);
   const [smokeHistory, setSmokeHistory] = useState<number[]>([]);
   const [motionHistory, setMotionHistory] = useState<number[]>([]);
+  const [batteryHistory, setBatteryHistory] = useState<number[]>([]);
 
   useEffect(() => {
     if (sensorData?.temperature == null) return;
@@ -415,11 +426,10 @@ export default function DevicesScreen() {
     if (sensorData == null) return;
     setMotionHistory(h => [...h, sensorData.motion ? 1 : 0].slice(-20));
   }, [sensorData?.motion]);
-
-  const batteryHistory = useMemo(
-    () => Array.from({ length: 20 }, (_, i) => 90 - i * 0.15 + Math.sin(i / 3) * 0.4),
-    [],
-  );
+  useEffect(() => {
+    if (sensorData?.battery == null) return;
+    setBatteryHistory(h => [...h, sensorData.battery as number].slice(-20));
+  }, [sensorData?.battery]);
 
   function computeTrend(arr: number[]): "up" | "down" | "flat" {
     if (arr.length < 6) return "flat";
@@ -495,8 +505,14 @@ export default function DevicesScreen() {
             </View>
             <View style={styles.cardTopRight}>
               <View style={[styles.batteryRow, { borderColor: batteryColor + "50" }]}>
-                <MaterialCommunityIcons name="battery-70" size={14} color={batteryColor} />
-                <Text style={[styles.batteryText, { color: batteryColor }]}>{battery}%</Text>
+                <MaterialCommunityIcons
+                  name={battery == null ? "battery-unknown" : "battery-70"}
+                  size={14}
+                  color={batteryColor}
+                />
+                <Text style={[styles.batteryText, { color: batteryColor }]}>
+                  {battery == null ? "—" : `${battery}%`}
+                </Text>
               </View>
               <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={Colors.textMuted} />
             </View>
@@ -527,46 +543,50 @@ export default function DevicesScreen() {
               <View style={styles.metricsGrid}>
                 <MetricCard
                   label="Temperature"
-                  value={(sensorData?.temperature ?? 24).toFixed(1)}
-                  unit="°C"
+                  value={sensorData?.temperature != null ? sensorData.temperature.toFixed(1) : "—"}
+                  unit={sensorData?.temperature != null ? "°C" : undefined}
                   status={tempStatus}
                   statusColor={tempStatusColor}
                   sensorColor={Colors.temp}
                   icon="thermometer"
                   history={tempHistory}
                   trend={computeTrend(tempHistory)}
+                  awaiting={sensorData?.temperature == null}
                 />
                 <MetricCard
                   label="Smoke"
-                  value={`${Math.round(sensorData?.smoke ?? 135)}`}
-                  unit="ppm"
+                  value={sensorData?.smoke != null ? `${Math.round(sensorData.smoke)}` : "—"}
+                  unit={sensorData?.smoke != null ? "ppm" : undefined}
                   status={smokeStatus}
                   statusColor={smokeStatusColor}
                   sensorColor={Colors.smoke}
                   icon="air-filter"
                   history={smokeHistory}
                   trend={computeTrend(smokeHistory)}
+                  awaiting={sensorData?.smoke == null}
                 />
                 <MetricCard
                   label="Motion"
-                  value={sensorData?.motion ? "Detected" : "Clear"}
-                  status={sensorData?.motion ? "Active" : "Idle"}
-                  statusColor={sensorData?.motion ? Colors.accent : Colors.normal}
+                  value={sensorData == null ? "—" : sensorData.motion ? "Detected" : "Clear"}
+                  status={sensorData == null ? "—" : sensorData.motion ? "Active" : "Idle"}
+                  statusColor={sensorData == null ? Colors.textMuted : sensorData.motion ? Colors.accent : Colors.normal}
                   sensorColor={Colors.motion}
                   icon="motion-sensor"
                   history={motionHistory}
                   binary
+                  awaiting={sensorData == null}
                 />
                 <MetricCard
                   label="Battery"
-                  value={`${battery}`}
-                  unit="%"
-                  status={battery > 60 ? "Good" : battery > 30 ? "Low" : "Critical"}
+                  value={battery != null ? `${battery}` : "—"}
+                  unit={battery != null ? "%" : undefined}
+                  status={battery == null ? "—" : battery > 60 ? "Good" : battery > 30 ? "Low" : "Critical"}
                   statusColor={batteryColor}
-                  sensorColor={batteryColor}
+                  sensorColor={battery == null ? Colors.textMuted : batteryColor}
                   icon="battery-charging"
                   history={batteryHistory}
-                  trend="down"
+                  trend={computeTrend(batteryHistory)}
+                  awaiting={battery == null}
                 />
               </View>
             </View>
@@ -901,26 +921,29 @@ function Sparkline({ data, color, width = 140, height = 26 }: { data: number[]; 
 }
 
 function MetricCard({
-  label, value, unit, status, statusColor, sensorColor, icon, history, trend, binary,
+  label, value, unit, status, statusColor, sensorColor, icon, history, trend, binary, awaiting,
 }: {
   label: string; value: string; unit?: string;
   status: string; statusColor: string; sensorColor: string;
-  icon: string; history?: number[]; trend?: "up" | "down" | "flat"; binary?: boolean;
+  icon: string; history?: number[]; trend?: "up" | "down" | "flat"; binary?: boolean; awaiting?: boolean;
 }) {
-  const trendIcon = trend === "up" ? "trending-up" : trend === "down" ? "trending-down" : null;
+  const tintColor = awaiting ? Colors.textMuted : sensorColor;
+  const trendIcon = !awaiting && trend === "up" ? "trending-up" : !awaiting && trend === "down" ? "trending-down" : null;
   const trendColor = trend === "up" ? Colors.high : trend === "down" ? Colors.normal : Colors.textMuted;
   return (
     <LinearGradient
-      colors={[Colors.bgCard, sensorColor + "0F"]}
+      colors={[Colors.bgCard, tintColor + (awaiting ? "00" : "0F")]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[styles.metricCard, { borderColor: sensorColor + "33" }]}
+      style={[styles.metricCard, { borderColor: tintColor + (awaiting ? "22" : "33") }]}
     >
       <View style={styles.metricHeader}>
-        <View style={[styles.metricIconBadge, { backgroundColor: sensorColor + "1F", borderColor: sensorColor + "40" }]}>
-          <MaterialCommunityIcons name={icon as any} size={15} color={sensorColor} />
+        <View style={[styles.metricIconBadge, { backgroundColor: tintColor + (awaiting ? "12" : "1F"), borderColor: tintColor + (awaiting ? "25" : "40") }]}>
+          <MaterialCommunityIcons name={icon as any} size={15} color={tintColor} />
         </View>
-        {trendIcon ? (
+        {awaiting ? (
+          <Text style={styles.awaitingTag}>WAITING</Text>
+        ) : trendIcon ? (
           <View style={[styles.trendChip, { backgroundColor: trendColor + "1A" }]}>
             <Feather name={trendIcon} size={10} color={trendColor} />
           </View>
@@ -930,18 +953,28 @@ function MetricCard({
       </View>
 
       <View style={styles.metricValueRow}>
-        <Text style={styles.metricValue}>{value}</Text>
+        <Text style={[styles.metricValue, awaiting && { color: Colors.textMuted }]}>{value}</Text>
         {unit ? <Text style={styles.metricUnit}>{unit}</Text> : null}
       </View>
       <Text style={styles.metricLabel}>{label}</Text>
 
       <View style={[styles.metricStatus, { backgroundColor: statusColor + "1A", borderColor: statusColor + "30" }]}>
         <View style={[styles.metricStatusDot, { backgroundColor: statusColor }]} />
-        <Text style={[styles.metricStatusText, { color: statusColor }]}>{status}</Text>
+        <Text style={[styles.metricStatusText, { color: statusColor }]}>
+          {awaiting ? "Awaiting hardware" : status}
+        </Text>
       </View>
 
       <View style={styles.metricSpark}>
-        <Sparkline data={history ?? []} color={sensorColor} width={148} height={binary ? 18 : 26} />
+        {history && history.length >= 2 ? (
+          <Sparkline data={history} color={sensorColor} width={148} height={binary ? 18 : 26} />
+        ) : (
+          <View style={styles.sparkPlaceholder}>
+            <Text style={styles.sparkPlaceholderText}>
+              {awaiting ? "No data yet" : "Collecting samples…"}
+            </Text>
+          </View>
+        )}
       </View>
     </LinearGradient>
   );
@@ -1109,6 +1142,29 @@ const styles = StyleSheet.create({
     marginBottom: -10,
     paddingTop: 4,
     overflow: "hidden",
+    minHeight: 26,
+    justifyContent: "center",
+  },
+  sparkPlaceholder: {
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sparkPlaceholderText: {
+    fontSize: 9,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textMuted,
+    letterSpacing: 0.4,
+  },
+  awaitingTag: {
+    fontSize: 8,
+    fontFamily: "Inter_700Bold",
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    backgroundColor: "rgba(74,90,120,0.15)",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   trendChip: {
     width: 22,
