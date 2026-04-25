@@ -440,7 +440,18 @@ export default function DevicesScreen() {
             <View style={styles.cardTopLeft}>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.deviceName}>{deviceName}</Text>
+                <View style={styles.nameRow}>
+                  <Text style={styles.deviceName} numberOfLines={1}>{deviceName}</Text>
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation?.(); openEdit(); }}
+                    hitSlop={12}
+                    style={styles.editIconBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit device name and location"
+                  >
+                    <Feather name="edit-2" size={11} color={Colors.accentLight} />
+                  </Pressable>
+                </View>
                 <View style={styles.locationRow}>
                   <Text style={styles.locationPin}>📍</Text>
                   <Text style={styles.locationText} numberOfLines={1}>{deviceLocation}</Text>
@@ -448,15 +459,6 @@ export default function DevicesScreen() {
               </View>
             </View>
             <View style={styles.cardTopRight}>
-              <Pressable
-                onPress={(e) => { e.stopPropagation?.(); openEdit(); }}
-                hitSlop={10}
-                style={styles.editIconBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Edit device name and location"
-              >
-                <Feather name="edit-2" size={13} color={Colors.accentLight} />
-              </Pressable>
               <View style={[styles.batteryRow, { borderColor: batteryColor + "50" }]}>
                 <MaterialCommunityIcons name="battery-70" size={14} color={batteryColor} />
                 <Text style={[styles.batteryText, { color: batteryColor }]}>{battery}%</Text>
@@ -864,13 +866,14 @@ const styles = StyleSheet.create({
   locationPin: { fontSize: 11 },
   locationText: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted },
   cardTopRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   editIconBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     backgroundColor: Colors.accentGlow,
     borderWidth: 1,
-    borderColor: Colors.accentLight + "55",
+    borderColor: Colors.accentLight + "40",
     alignItems: "center",
     justifyContent: "center",
   },
