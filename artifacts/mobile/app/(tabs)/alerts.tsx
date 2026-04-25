@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -36,6 +37,8 @@ export default function AlertsScreen() {
   const [filter, setFilter] = useState<Filter>("active");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [clearedToast, setClearedToast] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -61,22 +64,15 @@ export default function AlertsScreen() {
 
   function handleClearAll() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Clear All Alerts",
-      "This will permanently delete all alert history. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            clearAlertHistory();
-            Alert.alert("Cleared", "All alerts have been cleared.");
-          },
-        },
-      ]
-    );
+    setConfirmClearOpen(true);
+  }
+
+  function confirmClear() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    clearAlertHistory();
+    setConfirmClearOpen(false);
+    setClearedToast(true);
+    setTimeout(() => setClearedToast(false), 2200);
   }
 
   function handleLanguageSelect(code: string) {
@@ -519,9 +515,160 @@ export default function AlertsScreen() {
           ))
         )}
       </ScrollView>
+
+      <Modal
+        visible={confirmClearOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmClearOpen(false)}
+      >
+        <View style={confirmStyles.backdrop}>
+          <Pressable style={confirmStyles.backdropPress} onPress={() => setConfirmClearOpen(false)} />
+          <View style={confirmStyles.dialog}>
+            <View style={confirmStyles.iconCircle}>
+              <Feather name="alert-triangle" size={20} color={Colors.critical} />
+            </View>
+            <Text style={confirmStyles.title}>Clear All Alerts?</Text>
+            <Text style={confirmStyles.message}>
+              This will permanently delete all {alerts.length} alert{alerts.length === 1 ? "" : "s"} from your history.
+              This action cannot be undone.
+            </Text>
+            <View style={confirmStyles.btnRow}>
+              <Pressable
+                style={[confirmStyles.btn, confirmStyles.cancelBtn]}
+                onPress={() => setConfirmClearOpen(false)}
+              >
+                <Text style={confirmStyles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[confirmStyles.btn, confirmStyles.destructiveBtn]}
+                onPress={confirmClear}
+              >
+                <Feather name="trash-2" size={14} color="#fff" />
+                <Text style={confirmStyles.destructiveText}>Clear All</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {clearedToast && (
+        <View pointerEvents="none" style={confirmStyles.toastWrap}>
+          <View style={confirmStyles.toast}>
+            <Feather name="check-circle" size={14} color={Colors.normal} />
+            <Text style={confirmStyles.toastText}>All alerts cleared</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
+
+const confirmStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  backdropPress: { ...StyleSheet.absoluteFillObject },
+  dialog: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: Colors.bgCardElevated,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.criticalBorder,
+    padding: 22,
+    alignItems: "center",
+    gap: 10,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.criticalBg,
+    borderWidth: 1,
+    borderColor: Colors.criticalBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 17,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  message: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 8,
+  },
+  btnRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+    marginTop: 4,
+  },
+  btn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  cancelBtn: {
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cancelText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  destructiveBtn: {
+    backgroundColor: Colors.critical,
+  },
+  destructiveText: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
+  toastWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 100,
+  },
+  toast: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.bgCardElevated,
+    borderWidth: 1,
+    borderColor: Colors.normalBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  toastText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
