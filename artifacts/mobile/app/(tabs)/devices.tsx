@@ -1,6 +1,7 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,7 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle, G, Line, Path, Polyline, Rect, Text as SvgText } from "react-native-svg";
 import { Colors } from "@/constants/colors";
 import { useDashboard } from "@/context/DashboardContext";
 
@@ -396,6 +398,39 @@ export default function DevicesScreen() {
   const tempStatusColor = tempStatus === "Critical" ? Colors.critical : tempStatus === "Elevated" ? Colors.high : Colors.normal;
   const smokeStatusColor = smokeStatus === "Danger" ? Colors.critical : smokeStatus === "Warning" ? Colors.high : Colors.normal;
 
+  // Rolling sensor history for sparklines (last ~20 samples)
+  const [tempHistory, setTempHistory] = useState<number[]>([]);
+  const [smokeHistory, setSmokeHistory] = useState<number[]>([]);
+  const [motionHistory, setMotionHistory] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (sensorData?.temperature == null) return;
+    setTempHistory(h => [...h, sensorData.temperature].slice(-20));
+  }, [sensorData?.temperature]);
+  useEffect(() => {
+    if (sensorData?.smoke == null) return;
+    setSmokeHistory(h => [...h, sensorData.smoke].slice(-20));
+  }, [sensorData?.smoke]);
+  useEffect(() => {
+    if (sensorData == null) return;
+    setMotionHistory(h => [...h, sensorData.motion ? 1 : 0].slice(-20));
+  }, [sensorData?.motion]);
+
+  const batteryHistory = useMemo(
+    () => Array.from({ length: 20 }, (_, i) => 90 - i * 0.15 + Math.sin(i / 3) * 0.4),
+    [],
+  );
+
+  function computeTrend(arr: number[]): "up" | "down" | "flat" {
+    if (arr.length < 6) return "flat";
+    const recent = arr.slice(-3).reduce((a, b) => a + b, 0) / 3;
+    const prior = arr.slice(-6, -3).reduce((a, b) => a + b, 0) / 3;
+    const range = Math.max(...arr) - Math.min(...arr) || 1;
+    const delta = recent - prior;
+    if (Math.abs(delta) / range < 0.05) return "flat";
+    return delta > 0 ? "up" : "down";
+  }
+
   const recentAlerts = alerts.slice(0, 5);
 
   const anomalyPeak = Math.max(...GRAPH_DATA.map(p => p.confidence), 0);
@@ -482,35 +517,56 @@ export default function DevicesScreen() {
         {expanded && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Live Readings</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>Live Readings</Text>
+                <View style={styles.sectionLive}>
+                  <LiveDot color={Colors.normal} />
+                  <Text style={styles.sectionLiveText}>LIVE</Text>
+                </View>
+              </View>
               <View style={styles.metricsGrid}>
                 <MetricCard
                   label="Temperature"
-                  value={`${(sensorData?.temperature ?? 24).toFixed(1)}°C`}
+                  value={(sensorData?.temperature ?? 24).toFixed(1)}
+                  unit="°C"
                   status={tempStatus}
                   statusColor={tempStatusColor}
+                  sensorColor={Colors.temp}
                   icon="thermometer"
+                  history={tempHistory}
+                  trend={computeTrend(tempHistory)}
                 />
                 <MetricCard
                   label="Smoke"
-                  value={`${Math.round(sensorData?.smoke ?? 135)} ppm`}
+                  value={`${Math.round(sensorData?.smoke ?? 135)}`}
+                  unit="ppm"
                   status={smokeStatus}
                   statusColor={smokeStatusColor}
+                  sensorColor={Colors.smoke}
                   icon="air-filter"
+                  history={smokeHistory}
+                  trend={computeTrend(smokeHistory)}
                 />
                 <MetricCard
                   label="Motion"
                   value={sensorData?.motion ? "Detected" : "Clear"}
                   status={sensorData?.motion ? "Active" : "Idle"}
                   statusColor={sensorData?.motion ? Colors.accent : Colors.normal}
+                  sensorColor={Colors.motion}
                   icon="motion-sensor"
+                  history={motionHistory}
+                  binary
                 />
                 <MetricCard
                   label="Battery"
-                  value={`${battery}%`}
+                  value={`${battery}`}
+                  unit="%"
                   status={battery > 60 ? "Good" : battery > 30 ? "Low" : "Critical"}
                   statusColor={batteryColor}
+                  sensorColor={batteryColor}
                   icon="battery-charging"
+                  history={batteryHistory}
+                  trend="down"
                 />
               </View>
             </View>
@@ -786,18 +842,108 @@ function ReadingChip({ icon, value }: { icon: string; value: string }) {
   );
 }
 
-function MetricCard({ label, value, status, statusColor, icon }: {
-  label: string; value: string; status: string; statusColor: string; icon: string;
-}) {
+function LiveDot({ color }: { color: string }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] });
   return (
-    <View style={styles.metricCard}>
-      <MaterialCommunityIcons name={icon as any} size={18} color={statusColor} />
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={styles.liveDotWrap}>
+      <Animated.View
+        style={[
+          styles.liveDotHalo,
+          { backgroundColor: color, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] }), transform: [{ scale }] },
+        ]}
+      />
+      <Animated.View style={[styles.liveDotCore, { backgroundColor: color, opacity }]} />
+    </View>
+  );
+}
+
+function Sparkline({ data, color, width = 140, height = 26 }: { data: number[]; color: string; width?: number; height?: number }) {
+  if (!data || data.length < 2) {
+    return (
+      <Svg width={width} height={height}>
+        <Line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke={color} strokeOpacity={0.25} strokeWidth={1} strokeDasharray="3,3" />
+      </Svg>
+    );
+  }
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const padY = 3;
+  const stepX = width / (data.length - 1);
+  const pts = data.map((v, i) => {
+    const x = i * stepX;
+    const y = height - padY - ((v - min) / range) * (height - padY * 2);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const lastX = (data.length - 1) * stepX;
+  const lastY = height - padY - ((data[data.length - 1] - min) / range) * (height - padY * 2);
+  const areaPoints = `0,${height} ${pts.join(" ")} ${lastX.toFixed(2)},${height}`;
+  return (
+    <Svg width={width} height={height}>
+      <Polyline points={areaPoints} fill={color} fillOpacity={0.08} stroke="none" />
+      <Polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+      <Circle cx={lastX} cy={lastY} r={3} fill={color} />
+      <Circle cx={lastX} cy={lastY} r={5} fill={color} fillOpacity={0.25} />
+    </Svg>
+  );
+}
+
+function MetricCard({
+  label, value, unit, status, statusColor, sensorColor, icon, history, trend, binary,
+}: {
+  label: string; value: string; unit?: string;
+  status: string; statusColor: string; sensorColor: string;
+  icon: string; history?: number[]; trend?: "up" | "down" | "flat"; binary?: boolean;
+}) {
+  const trendIcon = trend === "up" ? "trending-up" : trend === "down" ? "trending-down" : null;
+  const trendColor = trend === "up" ? Colors.high : trend === "down" ? Colors.normal : Colors.textMuted;
+  return (
+    <LinearGradient
+      colors={[Colors.bgCard, sensorColor + "0F"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.metricCard, { borderColor: sensorColor + "33" }]}
+    >
+      <View style={styles.metricHeader}>
+        <View style={[styles.metricIconBadge, { backgroundColor: sensorColor + "1F", borderColor: sensorColor + "40" }]}>
+          <MaterialCommunityIcons name={icon as any} size={15} color={sensorColor} />
+        </View>
+        {trendIcon ? (
+          <View style={[styles.trendChip, { backgroundColor: trendColor + "1A" }]}>
+            <Feather name={trendIcon} size={10} color={trendColor} />
+          </View>
+        ) : (
+          <LiveDot color={sensorColor} />
+        )}
+      </View>
+
+      <View style={styles.metricValueRow}>
+        <Text style={styles.metricValue}>{value}</Text>
+        {unit ? <Text style={styles.metricUnit}>{unit}</Text> : null}
+      </View>
       <Text style={styles.metricLabel}>{label}</Text>
-      <View style={[styles.metricStatus, { backgroundColor: statusColor + "20" }]}>
+
+      <View style={[styles.metricStatus, { backgroundColor: statusColor + "1A", borderColor: statusColor + "30" }]}>
+        <View style={[styles.metricStatusDot, { backgroundColor: statusColor }]} />
         <Text style={[styles.metricStatusText, { color: statusColor }]}>{status}</Text>
       </View>
-    </View>
+
+      <View style={styles.metricSpark}>
+        <Sparkline data={history ?? []} color={sensorColor} width={148} height={binary ? 18 : 26} />
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -916,19 +1062,91 @@ const styles = StyleSheet.create({
   viewAll: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.accent },
   metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metricCard: {
-    width: "47%",
-    backgroundColor: Colors.bgCard,
-    borderRadius: 14,
+    width: "48%",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 14,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
     gap: 4,
-    alignItems: "flex-start",
+    alignItems: "stretch",
+    overflow: "hidden",
   },
-  metricValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.text, marginTop: 4 },
-  metricLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted },
-  metricStatus: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginTop: 2 },
-  metricStatusText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  metricHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  metricIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricValueRow: { flexDirection: "row", alignItems: "baseline", gap: 3 },
+  metricValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, lineHeight: 26 },
+  metricUnit: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  metricLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 2 },
+  metricStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-start",
+    borderRadius: 7,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  metricStatusDot: { width: 5, height: 5, borderRadius: 3 },
+  metricStatusText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.2 },
+  metricSpark: {
+    marginTop: 8,
+    marginHorizontal: -12,
+    marginBottom: -10,
+    paddingTop: 4,
+    overflow: "hidden",
+  },
+  trendChip: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveDotWrap: {
+    width: 12,
+    height: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveDotHalo: {
+    position: "absolute",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  liveDotCore: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  sectionLive: { flexDirection: "row", alignItems: "center", gap: 6 },
+  sectionLiveText: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    color: Colors.normal,
+    letterSpacing: 1,
+  },
   infoCard: {
     backgroundColor: Colors.bgCard,
     borderRadius: 14,
