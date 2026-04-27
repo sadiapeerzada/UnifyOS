@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import cors from 'cors';
 import { anomalyDetector } from '../lib/anomalyDetector.js';
 import { broadcastSensorUpdate, recordHardwarePing, getStatus } from '../lib/wsServer.js';
+import { setLatest, getLatest } from '../lib/latestCache.js';
 import { generateIncidentSummary, generateIncidentReport, testGeminiConnection } from '../services/gemini.js';
 import { getAllTranslations } from '../services/translator.js';
 import { db } from '@workspace/db';
@@ -39,9 +40,10 @@ router.post('/sensor-data', openCors, async (req, res) => {
     const motion: number = b.motion === true ? 1 : b.motion === false ? 0 : Number(b.motion ?? 0);
     const flame: boolean = b.flame === true || b.flame === 1;
     const alertType: string | undefined = b.alert_type ?? b.alertType;
+    const manualPanic: boolean = b.manual_panic === true || b.manualPanic === true;
     const button: number = b.button != null
       ? Number(b.button)
-      : (alertType === 'panic_button' || flame ? 1 : 0);
+      : (manualPanic || alertType === 'panic_button' || flame ? 1 : 0);
     const humidity: number | undefined = b.humidity != null ? Number(b.humidity) : undefined;
     const battery: number | undefined = b.battery != null ? Number(b.battery) : undefined;
     const firmwareConfidence: number | undefined = b.confidence != null ? Number(b.confidence) : undefined;
@@ -50,9 +52,27 @@ router.post('/sensor-data', openCors, async (req, res) => {
     const crowdDensity: 'low' | 'medium' | 'high' | undefined = b.crowd_density ?? b.crowdDensity;
     const audioAnomaly: boolean | undefined = b.audio_anomaly ?? b.audioAnomaly;
 
-    console.log(`📡 [Sensor] ${ts} | device=${deviceId} | temp=${temperature}°C | hum=${humidity ?? '—'}% | smoke=${smoke}ppm | flame=${flame} | motion=${motion} | button=${button} | fwLevel=${firmwareAlertLevel ?? '—'} | fwConf=${firmwareConfidence ?? '—'}`);
+    console.log(`📡 [Sensor] ${ts} | device=${deviceId} | temp=${temperature}°C | hum=${humidity ?? '—'}% | smoke=${smoke}ppm | flame=${flame} | motion=${motion} | button=${button} | manualPanic=${manualPanic} | fwLevel=${firmwareAlertLevel ?? '—'} | fwConf=${firmwareConfidence ?? '—'}`);
 
     recordHardwarePing(deviceId);
+
+    setLatest(deviceId, {
+      deviceId,
+      receivedAt: ts,
+      alertLevel: firmwareAlertLevel,
+      alertType,
+      temperature,
+      humidity,
+      smokeEma: b.smoke_ema != null ? Number(b.smoke_ema) : undefined,
+      smokeRaw,
+      flame,
+      motion,
+      crowdDensity,
+      audioAnomaly,
+      manualPanic,
+      battery,
+      raw: b,
+    });
 
     try {
       await db.update(devicesTable)
@@ -182,6 +202,16 @@ router.post('/sensor-data', openCors, async (req, res) => {
 
 router.get('/status', openCors, (_req, res) => {
   res.json(getStatus());
+});
+
+router.get('/latest/:deviceId', openCors, (req, res) => {
+  const { deviceId } = req.params;
+  const reading = getLatest(deviceId);
+  if (!reading) {
+    res.status(404).json({ error: 'No data received yet for this device', deviceId });
+    return;
+  }
+  res.json(reading);
 });
 
 router.post('/test-gemini', openCors, async (_req, res) => {

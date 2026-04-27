@@ -3,20 +3,50 @@ import { db } from "@workspace/db";
 import { devicesTable, sensorReadingsTable, alertsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { anomalyDetector } from "../lib/anomalyDetector.js";
+import { getAllLatest, getLatest, isOnline, DEVICE_OFFLINE_MS } from "../lib/latestCache.js";
 
 const router: IRouter = Router();
 
 router.get("/devices", async (_req, res) => {
+  let dbDevices: Array<{ id: string; name: string; location: string | null; status: string; lastSeen: Date; createdAt: Date }> = [];
   try {
-    const devices = await db.select().from(devicesTable).orderBy(desc(devicesTable.lastSeen));
-    res.json(devices.map(d => ({
-      ...d,
-      lastSeen: d.lastSeen.toISOString(),
-      createdAt: d.createdAt.toISOString(),
-    })));
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch devices" });
+    dbDevices = await db.select().from(devicesTable).orderBy(desc(devicesTable.lastSeen));
+  } catch (err: any) {
+    console.warn(`⚠️ [Devices] DB unavailable, returning in-memory only: ${err?.message ?? err}`);
   }
+
+  const known = new Set(dbDevices.map(d => d.id));
+
+  const dbResults = dbDevices.map(d => {
+    const cached = getLatest(d.id);
+    const lastSeenIso = cached?.receivedAt ?? d.lastSeen.toISOString();
+    const online = isOnline(lastSeenIso);
+    return {
+      ...d,
+      lastSeen: lastSeenIso,
+      createdAt: d.createdAt.toISOString(),
+      status: online ? d.status : "offline",
+      online,
+      alert_level: cached?.alertLevel ?? null,
+      offline_threshold_ms: DEVICE_OFFLINE_MS,
+    };
+  });
+
+  const cacheOnly = getAllLatest()
+    .filter(c => !known.has(c.deviceId))
+    .map(c => ({
+      id: c.deviceId,
+      name: c.deviceId,
+      location: null,
+      status: isOnline(c.receivedAt) ? "online" : "offline",
+      online: isOnline(c.receivedAt),
+      lastSeen: c.receivedAt,
+      createdAt: c.receivedAt,
+      alert_level: c.alertLevel ?? null,
+      offline_threshold_ms: DEVICE_OFFLINE_MS,
+    }));
+
+  res.json([...dbResults, ...cacheOnly]);
 });
 
 router.post("/devices/register", async (req, res) => {
