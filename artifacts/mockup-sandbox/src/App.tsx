@@ -118,16 +118,19 @@ function Gallery() {
 }
 
 function getPreviewPath(): string | null {
+  if (typeof window === "undefined") return null;
+
   const basePath = getBasePath();
-  const { pathname } = window.location;
+  const pathname = window.location.pathname;
+
   const local =
     basePath && pathname.startsWith(basePath)
       ? pathname.slice(basePath.length) || "/"
       : pathname;
+
   const match = local.match(/^\/preview\/(.+)$/);
   return match ? match[1] : null;
 }
-
 function App() {
   const previewPath = getPreviewPath();
 
